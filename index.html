@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Змейка в Telegram</title>
+    <style>
+        body { text-align: center; background: #000; color: white; }
+        canvas { background: #222; display: block; margin: auto; }
+    </style>
+</head>
+<body>
+    <h2>Змейка</h2>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        let snake = [{x: 10, y: 10}];
+        let direction = "RIGHT";
+        let food = {x: 5, y: 5};
+
+        function draw() {
+            ctx.fillStyle = "#222";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = "red";
+            ctx.fillRect(food.x * 20, food.y * 20, 20, 20);
+
+            ctx.fillStyle = "lime";
+            snake.forEach(part => ctx.fillRect(part.x * 20, part.y * 20, 20, 20));
+        }
+
+        function move() {
+            let head = { ...snake[0] };
+
+            if (direction === "RIGHT") head.x++;
+            if (direction === "LEFT") head.x--;
+            if (direction === "UP") head.y--;
+            if (direction === "DOWN") head.y++;
+
+            snake.unshift(head);
+
+            if (head.x === food.x && head.y === food.y) {
+                food = { x: Math.floor(Math.random() * 20), y: Math.floor(Math.random() * 20) };
+            } else {
+                snake.pop();
+            }
+        }
+
+        function changeDirection(event) {
+            const key = event.keyCode;
+            if (key === 37 && direction !== "RIGHT") direction = "LEFT";
+            if (key === 38 && direction !== "DOWN") direction = "UP";
+            if (key === 39 && direction !== "LEFT") direction = "RIGHT";
+            if (key === 40 && direction !== "UP") direction = "DOWN";
+        }
+
+        document.addEventListener("keydown", changeDirection);
+
+        function gameLoop() {
+            move();
+            draw();
+        }
+
+        setInterval(gameLoop, 150);
+    </script>
+</body>
+</html>
