@@ -42,9 +42,11 @@ BULLET_SPEED = 10
 # --- Игровые переменные ---
 score = 0
 start_time = pygame.time.get_ticks() # Время начала игры в миллисекундах
+game_over = False # НОВАЯ ПЕРЕМЕННАЯ: Флаг для состояния конца игры
 
 # Шрифты
 font = pygame.font.Font(None, 36) # Стандартный шрифт, размер 36
+game_over_font = pygame.font.Font(None, 72) # Шрифт для сообщения "Игра окончена"
 
 # --- Классы игровых объектов ---
 
@@ -59,6 +61,7 @@ class Player:
         self.color = PLAYER_COLOR
         self.barrel_angle = 0 # Угол поворота дула в радианах
         self.barrel_end_pos = (0, 0) # Конечная точка дула
+        self.is_alive = True # НОВОЕ: Флаг состояния жизни игрока
 
     def update(self, mouse_pos):
         """
@@ -196,85 +199,115 @@ while running:
         if event.type == pygame.QUIT:
             running = False # Закрываем игру при нажатии кнопки "закрыть"
         if event.type == pygame.MOUSEBUTTONDOWN:
-            # --- ИЗМЕНЕНИЕ ЗДЕСЬ: Теперь выстрел по левой кнопке мыши (event.button == 1) ---
-            if event.button == 1: # Левая кнопка мыши (была 3 для правой кнопки)
-                # print(f"Выстрел! Начальная позиция дула: {player.barrel_end_pos}") # Можно раскомментировать для отладки
-                # print(f"Позиция мыши: {pygame.mouse.get_pos()}") # Можно раскомментировать для отладки
-                # Создаем новый снаряд, исходящий из конца дула
+            # Выстрел только если игрок жив
+            if not game_over and event.button == 1: # Левая кнопка мыши
                 bullets.append(Bullet(player.barrel_end_pos, pygame.mouse.get_pos()))
 
-    # --- Движение игрока по нажатию клавиш ---
-    keys = pygame.key.get_pressed()
-    # Обрабатываем нажатия A, S, W, D для перемещения
-    if keys[pygame.K_a]: # Влево
-        player.move(-1, 0)
-    if keys[pygame.K_d]: # Вправо
-        player.move(1, 0)
-    if keys[pygame.K_w]: # Вверх
-        player.move(0, -1)
-    if keys[pygame.K_s]: # Вниз
-        player.move(0, 1)
+    # --- Обновление состояния игры только если игра не окончена ---
+    if not game_over:
+        # Движение игрока по нажатию клавиш
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_a]: # Влево
+            player.move(-1, 0)
+        if keys[pygame.K_d]: # Вправо
+            player.move(1, 0)
+        if keys[pygame.K_w]: # Вверх
+            player.move(0, -1)
+        if keys[pygame.K_s]: # Вниз
+            player.move(0, 1)
 
-    # --- Обновление состояний игровых объектов ---
-    # Обновляем поворот дула игрока в сторону курсора мыши
-    player.update(pygame.mouse.get_pos())
+        # Обновление поворота дула игрока
+        player.update(pygame.mouse.get_pos())
 
-    # Обновляем все активные снаряды и удаляем те, что вышли за экран
-    for bullet in bullets[:]: # Итерируем по копии списка, чтобы безопасно удалять элементы
-        bullet.update()
-        if bullet.is_offscreen():
-            bullets.remove(bullet)
-
-    # Генерируем новые кружки, если их меньше MAX_CIRCLES
-    while len(circles) < MAX_CIRCLES:
-        new_circle = CircleTarget()
-        if score >= 10:
-            new_circle.set_bouncing_direction() # Запускаем движение, если счет >= 10
-        circles.append(new_circle)
-
-    # Обновляем все активные кружки
-    for circle in circles:
-        circle.update()
-
-    # --- Проверка столкновений снарядов с кружками ---
-    # Перебираем все снаряды и все кружки
-    for bullet in bullets[:]:
-        for circle in circles[:]:
-            # Вычисляем расстояние между центром снаряда и центром кружка
-            distance = math.sqrt((bullet.pos[0] - circle.pos[0])**2 + (bullet.pos[1] - circle.pos[1])**2)
-            # Если расстояние меньше суммы радиусов, значит, произошло столкновение
-            if distance < bullet.radius + circle.radius:
-                # Столкновение произошло! Удаляем снаряд и кружок
+        # Обновление снарядов
+        for bullet in bullets[:]:
+            bullet.update()
+            if bullet.is_offscreen():
                 bullets.remove(bullet)
-                circles.remove(circle)
-                score += 1 # Увеличиваем счет
-                break # Выходим из внутреннего цикла, так как снаряд уже удален
+
+        # Генерация кружков
+        while len(circles) < MAX_CIRCLES:
+            new_circle = CircleTarget()
+            if score >= 10:
+                new_circle.set_bouncing_direction()
+            circles.append(new_circle)
+
+        # Обновление кружков
+        for circle in circles:
+            circle.update()
+
+        # Проверка столкновений снарядов с кружками
+        for bullet in bullets[:]:
+            for circle in circles[:]:
+                distance = math.sqrt((bullet.pos[0] - circle.pos[0])**2 + (bullet.pos[1] - circle.pos[1])**2)
+                if distance < bullet.radius + circle.radius:
+                    bullets.remove(bullet)
+                    circles.remove(circle)
+                    score += 1
+                    break
+
+        # НОВОЕ: Проверка столкновений игрока с кружками
+        for circle in circles[:]: # Проверяем каждый кружок
+            # Вычисляем расстояние между центром игрока и центром кружка
+            # Центр игрока: (player.rect.centerx, player.rect.centery)
+            # Центр кружка: (circle.pos[0], circle.pos[1])
+            distance_player_circle = math.sqrt(
+                (player.rect.centerx - circle.pos[0])**2 +
+                (player.rect.centery - circle.pos[1])**2
+            )
+            # Если расстояние меньше половины размера игрока (радиус описанной окружности)
+            # плюс радиус кружка, то произошло столкновение.
+            # Для простоты, берем половину диагонали квадрата как "радиус" для столкновения
+            # Или просто половину ширины/высоты для приблизительной сферы.
+            # Если квадратик, то радиус примерно PLAYER_SIZE / 2
+            if distance_player_circle < (PLAYER_SIZE / 2) + circle.radius:
+                game_over = True # Устанавливаем флаг конца игры
+                player.is_alive = False # Игрок "умирает"
+                # Дополнительно: можно очистить снаряды и кружки после смерти
+                # bullets.clear()
+                # circles.clear()
+                break # Выходим из цикла, игрок уже столкнулся
 
     # --- Отрисовка ---
-    SCREEN.fill(WHITE) # Заполняем весь экран белым цветом (очистка предыдущего кадра)
+    SCREEN.fill(WHITE) # Заполняем весь экран белым цветом
 
-    # Отрисовываем все игровые объекты
-    player.draw(SCREEN)
-    for bullet in bullets:
-        bullet.draw(SCREEN)
-    for circle in circles:
-        circle.draw(SCREEN)
+    # Отрисовываем игровые объекты только если игра не окончена, или чтобы показать последний кадр
+    if not game_over:
+        player.draw(SCREEN)
+        for bullet in bullets:
+            bullet.draw(SCREEN)
+        for circle in circles:
+            circle.draw(SCREEN)
+    else:
+        # Если игра окончена, рисуем игрока только если он жив (он уже "умер")
+        # Вместо этого, можно показать игрока в "мертвом" состоянии или просто не рисовать его
+        # Если вы хотите, чтобы игрок исчез после смерти, просто не вызывайте player.draw(SCREEN)
+        # Если хотите, чтобы он остался на месте смерти, оставьте player.draw(SCREEN)
+        # Здесь оставляем его, чтобы было видно место столкновения
+        player.draw(SCREEN)
+        for circle in circles: # Рисуем оставшиеся кружки
+            circle.draw(SCREEN)
 
-    # --- Отображение таймера и счета ---
-    # Вычисляем прошедшее время в секундах
-    elapsed_time = (pygame.time.get_ticks() - start_time) // 1000
-    timer_text = font.render(f"Время: {elapsed_time}", True, BLACK) # Рендерим текст таймера
-    score_text = font.render(f"Счет: {score}", True, BLACK) # Рендерим текст счета
+    # Отображение таймера и счета
+    if not game_over: # Таймер идет только пока игрок жив
+        elapsed_time = (pygame.time.get_ticks() - start_time) // 1000
+    timer_text = font.render(f"Время: {elapsed_time}", True, BLACK)
+    score_text = font.render(f"Счет: {score}", True, BLACK)
 
-    # Размещаем текст в правом верхнем углу
     SCREEN.blit(timer_text, (WIDTH - timer_text.get_width() - 10, 10))
     SCREEN.blit(score_text, (WIDTH - score_text.get_width() - 10, 50))
 
-    # --- Обновление экрана ---
-    pygame.display.flip() # Обновляем весь экран, чтобы показать изменения
+    # НОВОЕ: Сообщение "Игра окончена"
+    if game_over:
+        game_over_text = game_over_font.render("ИГРА ОКОНЧЕНА!", True, RED)
+        text_rect = game_over_text.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+        SCREEN.blit(game_over_text, text_rect)
 
-    # --- Ограничение FPS (кадров в секунду) ---
-    clock.tick(60) # Устанавливаем максимальную частоту кадров в 60 FPS
+    # --- Обновление экрана ---
+    pygame.display.flip()
+
+    # --- Ограничение FPS ---
+    clock.tick(60)
 
 # Завершение работы Pygame
 pygame.quit()
