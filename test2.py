@@ -7,8 +7,8 @@ pygame.init()
 
 # --- Константы для настройки игры ---
 # Размеры окна
-WIDTH = 800
-HEIGHT = 600
+WIDTH = 1200
+HEIGHT = 800
 SCREEN = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Игра с квадратиком")
 
@@ -22,27 +22,39 @@ YELLOW = (255, 255, 0)
 
 # Скорость игрока (шаг за раз, как в змейке)
 PLAYER_SPEED = 5
-
-# Параметры кружков-мишеней
-CIRCLE_RADIUS = 15
-CIRCLE_COLOR = BLUE
-MAX_CIRCLES = 2 # Одновременно на поле
 BOUNCING_SPEED = 3 # Скорость для отскакивающих кружков
+BULLET_SPEED = 10
 
-# Параметры игрока (квадратика)
+# Параметры игрока (квадратика) - ОПРЕДЕЛЯЮТСЯ РАНЬШЕ!
 PLAYER_SIZE = 40
 PLAYER_COLOR = GREEN
 BARREL_LENGTH = 20 # Длина дула
 
+# Параметры кружков-мишеней - ОПРЕДЕЛЯЮТСЯ РАНЬШЕ!
+CIRCLE_RADIUS = 15
+CIRCLE_COLOR = BLUE
+# MAX_CIRCLES = 2  # Эту константу мы больше не будем использовать для генерации таким образом
+
 # Параметры снаряда
 BULLET_RADIUS = 5
 BULLET_COLOR = RED
-BULLET_SPEED = 10
+
+
+# НОВЫЕ КОНСТАНТЫ: Минимальное безопасное расстояние
+# Теперь они определяются ПОСЛЕ PLAYER_SIZE и CIRCLE_RADIUS
+# Минимальное расстояние от центра нового кружка до центра игрока:
+# (радиус кружка) + (половина размера игрока) + (небольшой отступ)
+MIN_SPAWN_DISTANCE = CIRCLE_RADIUS + (PLAYER_SIZE / 2) + 10
+
+# Минимальное расстояние между центрами двух кружков:
+# (два радиуса кружка) + (небольшой отступ)
+MIN_CIRCLE_DISTANCE = (CIRCLE_RADIUS * 2) + 10
+
 
 # --- Игровые переменные ---
 score = 0
 start_time = pygame.time.get_ticks() # Время начала игры в миллисекундах
-game_over = False # НОВАЯ ПЕРЕМЕННАЯ: Флаг для состояния конца игры
+game_over = False # Флаг для состояния конца игры
 
 # Шрифты
 font = pygame.font.Font(None, 36) # Стандартный шрифт, размер 36
@@ -61,7 +73,7 @@ class Player:
         self.color = PLAYER_COLOR
         self.barrel_angle = 0 # Угол поворота дула в радианах
         self.barrel_end_pos = (0, 0) # Конечная точка дула
-        self.is_alive = True # НОВОЕ: Флаг состояния жизни игрока
+        self.is_alive = True # Флаг состояния жизни игрока
 
     def update(self, mouse_pos):
         """
@@ -146,14 +158,60 @@ class CircleTarget:
     Класс для управления кружками-мишенями.
     Отвечает за их позицию, движение (если движутся) и отрисовку.
     """
-    def __init__(self):
+    # МЕТОД __init__ ИЗМЕНЕН! Теперь принимает ссылки на игрока и другие кружки
+    def __init__(self, player_obj, existing_circles):
         self.radius = CIRCLE_RADIUS
         self.color = CIRCLE_COLOR
-        # Случайная позиция при создании, чтобы кружок не выходил за границы
-        self.pos = [random.randint(self.radius, WIDTH - self.radius),
-                    random.randint(self.radius, HEIGHT - self.radius)]
         self.is_bouncing = False # Флаг, указывающий, движется ли кружок
         self.direction = [0, 0] # Вектор направления для отскакивающих кружков
+
+        # НОВОЕ: Генерация позиции с учетом минимального расстояния
+        spawn_successful = False
+        attempts = 0
+        max_attempts = 100 # Ограничиваем попытки, чтобы избежать бесконечного цикла
+
+        while not spawn_successful and attempts < max_attempts:
+            # Генерируем случайную позицию в пределах экрана
+            new_x = random.randint(self.radius, WIDTH - self.radius)
+            new_y = random.randint(self.radius, HEIGHT - self.radius)
+            temp_pos = [new_x, new_y]
+
+            # Проверяем расстояние до игрока
+            distance_to_player = math.sqrt(
+                (temp_pos[0] - player_obj.rect.centerx)**2 +
+                (temp_pos[1] - player_obj.rect.centery)**2
+            )
+
+            # Если слишком близко к игроку, пробуем снова
+            if distance_to_player < MIN_SPAWN_DISTANCE:
+                attempts += 1
+                continue
+
+            # Проверяем расстояние до других кружков
+            is_too_close_to_other_circles = False
+            for other_circle in existing_circles:
+                distance_to_other_circle = math.sqrt(
+                    (temp_pos[0] - other_circle.pos[0])**2 +
+                    (temp_pos[1] - other_circle.pos[1])**2
+                )
+                if distance_to_other_circle < MIN_CIRCLE_DISTANCE:
+                    is_too_close_to_other_circles = True
+                    break # Нашли слишком близкий кружок, нет смысла проверять дальше
+
+            # Если слишком близко к другому кружку, пробуем снова
+            if is_too_close_to_other_circles:
+                attempts += 1
+                continue
+
+            # Если все проверки пройдены, позиция подходит
+            self.pos = temp_pos
+            spawn_successful = True
+
+        # Если не удалось найти подходящую позицию за max_attempts, размещаем где попало (маловероятно)
+        if not spawn_successful:
+            self.pos = [random.randint(self.radius, WIDTH - self.radius),
+                        random.randint(self.radius, HEIGHT - self.radius)]
+            # print("Предупреждение: не удалось найти свободное место для кружка!") # Можно включить для отладки
 
     def set_bouncing_direction(self):
         """
@@ -188,6 +246,11 @@ class CircleTarget:
 player = Player()
 bullets = [] # Список для хранения всех активных снарядов
 circles = [] # Список для хранения всех активных кружков-мишеней
+
+# --- Инициализация кружков при старте игры (два кружка, как ты и просил) ---
+# НОВОЕ: Передаем player и circles в конструктор CircleTarget
+circles.append(CircleTarget(player, circles))
+circles.append(CircleTarget(player, circles))
 
 # --- Главный игровой цикл ---
 running = True
@@ -225,13 +288,6 @@ while running:
             if bullet.is_offscreen():
                 bullets.remove(bullet)
 
-        # Генерация кружков
-        while len(circles) < MAX_CIRCLES:
-            new_circle = CircleTarget()
-            if score >= 10:
-                new_circle.set_bouncing_direction()
-            circles.append(new_circle)
-
         # Обновление кружков
         for circle in circles:
             circle.update()
@@ -244,49 +300,36 @@ while running:
                     bullets.remove(bullet)
                     circles.remove(circle)
                     score += 1
-                    break
 
-        # НОВОЕ: Проверка столкновений игрока с кружками
+                    # Добавляем два новых кружка при сбитии одного
+                    for _ in range(2): # Цикл для добавления двух кружков
+                        # НОВОЕ: Передаем player и circles в конструктор CircleTarget
+                        new_circle = CircleTarget(player, circles)
+                        if score >= 10: # Проверяем условие для движения
+                            new_circle.set_bouncing_direction()
+                        circles.append(new_circle)
+                    break # Выходим из внутреннего цикла, так как снаряд уже удален
+
+        # Проверка столкновений игрока с кружками
         for circle in circles[:]: # Проверяем каждый кружок
-            # Вычисляем расстояние между центром игрока и центром кружка
-            # Центр игрока: (player.rect.centerx, player.rect.centery)
-            # Центр кружка: (circle.pos[0], circle.pos[1])
             distance_player_circle = math.sqrt(
                 (player.rect.centerx - circle.pos[0])**2 +
                 (player.rect.centery - circle.pos[1])**2
             )
-            # Если расстояние меньше половины размера игрока (радиус описанной окружности)
-            # плюс радиус кружка, то произошло столкновение.
-            # Для простоты, берем половину диагонали квадрата как "радиус" для столкновения
-            # Или просто половину ширины/высоты для приблизительной сферы.
-            # Если квадратик, то радиус примерно PLAYER_SIZE / 2
             if distance_player_circle < (PLAYER_SIZE / 2) + circle.radius:
                 game_over = True # Устанавливаем флаг конца игры
                 player.is_alive = False # Игрок "умирает"
-                # Дополнительно: можно очистить снаряды и кружки после смерти
-                # bullets.clear()
-                # circles.clear()
                 break # Выходим из цикла, игрок уже столкнулся
 
     # --- Отрисовка ---
     SCREEN.fill(WHITE) # Заполняем весь экран белым цветом
 
-    # Отрисовываем игровые объекты только если игра не окончена, или чтобы показать последний кадр
-    if not game_over:
-        player.draw(SCREEN)
-        for bullet in bullets:
-            bullet.draw(SCREEN)
-        for circle in circles:
-            circle.draw(SCREEN)
-    else:
-        # Если игра окончена, рисуем игрока только если он жив (он уже "умер")
-        # Вместо этого, можно показать игрока в "мертвом" состоянии или просто не рисовать его
-        # Если вы хотите, чтобы игрок исчез после смерти, просто не вызывайте player.draw(SCREEN)
-        # Если хотите, чтобы он остался на месте смерти, оставьте player.draw(SCREEN)
-        # Здесь оставляем его, чтобы было видно место столкновения
-        player.draw(SCREEN)
-        for circle in circles: # Рисуем оставшиеся кружки
-            circle.draw(SCREEN)
+    # Отрисовываем игровые объекты
+    player.draw(SCREEN)
+    for bullet in bullets:
+        bullet.draw(SCREEN)
+    for circle in circles:
+        circle.draw(SCREEN)
 
     # Отображение таймера и счета
     if not game_over: # Таймер идет только пока игрок жив
@@ -297,7 +340,7 @@ while running:
     SCREEN.blit(timer_text, (WIDTH - timer_text.get_width() - 10, 10))
     SCREEN.blit(score_text, (WIDTH - score_text.get_width() - 10, 50))
 
-    # НОВОЕ: Сообщение "Игра окончена"
+    # Сообщение "Игра окончена"
     if game_over:
         game_over_text = game_over_font.render("ИГРА ОКОНЧЕНА!", True, RED)
         text_rect = game_over_text.get_rect(center=(WIDTH // 2, HEIGHT // 2))
