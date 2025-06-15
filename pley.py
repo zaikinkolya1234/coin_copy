@@ -33,7 +33,13 @@ BARREL_LENGTH = 20 # Длина дула
 # Параметры кружков-мишеней - ОПРЕДЕЛЯЮТСЯ РАНЬШЕ!
 CIRCLE_RADIUS = 15
 CIRCLE_COLOR = BLUE
-# MAX_CIRCLES = 2  # Эту константу мы больше не будем использовать для генерации таким образом
+# Максимальное количество кружков на экране
+MAX_CIRCLES = 30
+
+# Параметры защитного круга вокруг игрока
+HAZARD_RADIUS = 50
+HAZARD_RED_DURATION = 2000  # миллисекунды
+HAZARD_BLACK_DURATION = 500
 
 # Параметры снаряда
 BULLET_RADIUS = 5
@@ -252,6 +258,11 @@ circles = [] # Список для хранения всех активных к
 circles.append(CircleTarget(player, circles))
 circles.append(CircleTarget(player, circles))
 
+# Переменные для защитного круга
+hazard_center = player.rect.center
+hazard_start = pygame.time.get_ticks()
+hazard_is_black = False
+
 # --- Главный игровой цикл ---
 running = True
 clock = pygame.time.Clock() # Объект для контроля частоты кадров
@@ -292,6 +303,24 @@ while running:
         for circle in circles:
             circle.update()
 
+        # Обновление защитного круга
+        current_time = pygame.time.get_ticks()
+        elapsed_hazard = current_time - hazard_start
+        if elapsed_hazard >= HAZARD_RED_DURATION + HAZARD_BLACK_DURATION:
+            hazard_start = current_time
+            hazard_center = player.rect.center
+            elapsed_hazard = 0
+
+        hazard_is_black = elapsed_hazard >= HAZARD_RED_DURATION
+        if hazard_is_black:
+            distance_to_hazard = math.hypot(
+                player.rect.centerx - hazard_center[0],
+                player.rect.centery - hazard_center[1]
+            )
+            if distance_to_hazard <= HAZARD_RADIUS + PLAYER_SIZE / 2:
+                game_over = True
+                player.is_alive = False
+
         # Проверка столкновений снарядов с кружками
         for bullet in bullets[:]:
             for circle in circles[:]:
@@ -301,11 +330,12 @@ while running:
                     circles.remove(circle)
                     score += 1
 
-                    # Добавляем два новых кружка при сбитии одного
-                    for _ in range(2): # Цикл для добавления двух кружков
-                        # НОВОЕ: Передаем player и circles в конструктор CircleTarget
+                    # Добавляем два новых кружка при сбитии одного, но не более MAX_CIRCLES
+                    for _ in range(2):
+                        if len(circles) >= MAX_CIRCLES:
+                            break
                         new_circle = CircleTarget(player, circles)
-                        if score >= 10: # Проверяем условие для движения
+                        if score >= 10:
                             new_circle.set_bouncing_direction()
                         circles.append(new_circle)
                     break # Выходим из внутреннего цикла, так как снаряд уже удален
@@ -324,7 +354,11 @@ while running:
     # --- Отрисовка ---
     SCREEN.fill(WHITE) # Заполняем весь экран белым цветом
 
-    # Отрисовываем игровые объекты
+    # Рисуем защитный круг под игровыми объектами
+    hazard_color = BLACK if hazard_is_black else RED
+    pygame.draw.circle(SCREEN, hazard_color, hazard_center, HAZARD_RADIUS)
+
+    # Отрисовываем игровые объекты поверх круга
     player.draw(SCREEN)
     for bullet in bullets:
         bullet.draw(SCREEN)
