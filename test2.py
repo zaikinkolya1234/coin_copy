@@ -196,7 +196,10 @@ while running:
         if event.type == pygame.QUIT:
             running = False # Закрываем игру при нажатии кнопки "закрыть"
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 3: # Правая кнопка мыши (кнопка 1 - левая, 2 - средняя)
+            # --- ИЗМЕНЕНИЕ ЗДЕСЬ: Теперь выстрел по левой кнопке мыши (event.button == 1) ---
+            if event.button == 1: # Левая кнопка мыши (была 3 для правой кнопки)
+                # print(f"Выстрел! Начальная позиция дула: {player.barrel_end_pos}") # Можно раскомментировать для отладки
+                # print(f"Позиция мыши: {pygame.mouse.get_pos()}") # Можно раскомментировать для отладки
                 # Создаем новый снаряд, исходящий из конца дула
                 bullets.append(Bullet(player.barrel_end_pos, pygame.mouse.get_pos()))
 
