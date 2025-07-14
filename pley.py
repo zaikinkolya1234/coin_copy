@@ -149,6 +149,11 @@ for resource, percent in resource_distribution.items():
                 hex_number_map[coord] = random.randint(2, 12)
         count += len(cluster)
 
+# Ensure all silver hexes received a number
+for coord, res in hex_resource_map.items():
+    if res == 'silver' and coord not in hex_number_map:
+        hex_number_map[coord] = random.randint(2, 12)
+
 # Structures on map (starting settlements)
 # Settlements are placed on hex vertices represented as (q, r, corner)
 structures = {}
@@ -198,23 +203,28 @@ def roll_dice():
 
 def produce_resources(dice_value):
     for (q, r, corner), data in structures.items():
-        for hq, hr in vertex_adjacent_hexes(q, r, corner):
-            if hex_number_map.get((hq, hr)) == dice_value:
-                resource = hex_resource_map.get((hq, hr))
-                if resource is None:
-                    continue
-                player = players[data['player']]
-                if data['type'] == 'settlement':
-                    amount = 1
-                elif data['type'] == 'city':
-                    amount = 2
-                else:
-                    amount = 3  # upgraded city
-                player['resources'][resource] += amount
+        adj = [h for h in vertex_adjacent_hexes(q, r, corner) if h in hex_resource_map]
+        for hq, hr in adj[:3]:
+            if hex_number_map.get((hq, hr)) != dice_value:
+                continue
+            resource = hex_resource_map.get((hq, hr))
+            if resource is None:
+                continue
+            player = players[data['player']]
+            if data['type'] == 'settlement':
+                amount = 1
+            elif data['type'] == 'city':
+                amount = 2
+            else:
+                amount = 3  # upgraded city
+            player['resources'][resource] += amount
 
 
-def draw_resources(surface, player, x):
-    y = 50
+def draw_resources(surface, player, x, label, label_color):
+    y = 30
+    name_surf = font.render(label, True, label_color)
+    surface.blit(name_surf, (x, y))
+    y += 20
     for res, color in RESOURCE_COLORS.items():
         pygame.draw.rect(surface, color, (x, y, 20, 20))
         count = player['resources'][res]
@@ -279,7 +289,8 @@ while running:
 
     draw_structures(screen)
 
-    draw_resources(screen, players[current_player_index], 10)
+    draw_resources(screen, players[0], 10, 'Игрок 1', (0, 0, 255))
+    draw_resources(screen, players[1], WIDTH - 150, 'Игрок 2', (255, 0, 0))
 
     if dice_result is not None:
         dice_surf = font.render(f'Бросок: {dice_result}', True, (0,0,0))
