@@ -81,6 +81,26 @@ def draw_hex(surface, color, x, y, size):
     pygame.draw.polygon(surface, color, points)
     pygame.draw.polygon(surface, (0, 0, 0), points, 1)
 
+# Axial direction vectors for neighbour calculations
+DIRECTIONS = [
+    (1, 0),   # East
+    (1, -1),  # North-East
+    (0, -1),  # North-West
+    (-1, 0),  # West
+    (-1, 1),  # South-West
+    (0, 1),   # South-East
+]
+
+
+def vertex_adjacent_hexes(q, r, corner):
+    """Return up to three hexes that touch a given vertex."""
+    results = {(q, r)}
+    dq1, dr1 = DIRECTIONS[corner % 6]
+    dq2, dr2 = DIRECTIONS[(corner - 1) % 6]
+    results.add((q + dq1, r + dr1))
+    results.add((q + dq2, r + dr2))
+    return results
+
 # Map generation
 hexes = generate_fixed_islands(total_hexes_needed=300)
 random.shuffle(hexes)
@@ -130,12 +150,19 @@ for resource, percent in resource_distribution.items():
         count += len(cluster)
 
 # Structures on map (starting settlements)
+# Settlements are placed on hex vertices represented as (q, r, corner)
 structures = {}
-start_spots = random.sample(list(hex_resource_map.keys()), 4)
-structures[start_spots[0]] = {'player': 0, 'type': 'settlement'}
-structures[start_spots[1]] = {'player': 0, 'type': 'settlement'}
-structures[start_spots[2]] = {'player': 1, 'type': 'settlement'}
-structures[start_spots[3]] = {'player': 1, 'type': 'settlement'}
+start_vertices = set()
+while len(start_vertices) < 4:
+    hq, hr = random.choice(list(hex_resource_map.keys()))
+    corner = random.randint(0, 5)
+    start_vertices.add((hq, hr, corner))
+
+start_vertices = list(start_vertices)
+structures[start_vertices[0]] = {'player': 0, 'type': 'settlement'}
+structures[start_vertices[1]] = {'player': 0, 'type': 'settlement'}
+structures[start_vertices[2]] = {'player': 1, 'type': 'settlement'}
+structures[start_vertices[3]] = {'player': 1, 'type': 'settlement'}
 
 # Simple button implementation
 class Button:
@@ -170,19 +197,20 @@ def roll_dice():
 
 
 def produce_resources(dice_value):
-    for coord, data in structures.items():
-        if hex_number_map.get(coord) == dice_value:
-            resource = hex_resource_map.get(coord)
-            if resource is None:
-                continue
-            player = players[data['player']]
-            if data['type'] == 'settlement':
-                amount = 1
-            elif data['type'] == 'city':
-                amount = 2
-            else:
-                amount = 3  # upgraded city
-            player['resources'][resource] += amount
+    for (q, r, corner), data in structures.items():
+        for hq, hr in vertex_adjacent_hexes(q, r, corner):
+            if hex_number_map.get((hq, hr)) == dice_value:
+                resource = hex_resource_map.get((hq, hr))
+                if resource is None:
+                    continue
+                player = players[data['player']]
+                if data['type'] == 'settlement':
+                    amount = 1
+                elif data['type'] == 'city':
+                    amount = 2
+                else:
+                    amount = 3  # upgraded city
+                player['resources'][resource] += amount
 
 
 def draw_resources(surface, player, x):
@@ -196,12 +224,15 @@ def draw_resources(surface, player, x):
 
 
 def draw_structures(surface):
-    for (q, r), data in structures.items():
-        x, y = hex_to_pixel(q, r, HEX_SIZE * zoom)
-        x += WIDTH // 2 + offset_x
-        y += HEIGHT // 2 + offset_y
+    for (q, r, corner), data in structures.items():
+        hx, hy = hex_to_pixel(q, r, HEX_SIZE * zoom)
+        hx += WIDTH // 2 + offset_x
+        hy += HEIGHT // 2 + offset_y
+        angle = math.radians(60 * corner - 30)
+        vx = hx + HEX_SIZE * zoom * math.cos(angle)
+        vy = hy + HEX_SIZE * zoom * math.sin(angle)
         color = (255, 0, 0) if data['player'] == 0 else (0, 0, 255)
-        pygame.draw.circle(surface, color, (int(x), int(y)), int(8 * zoom))
+        pygame.draw.circle(surface, color, (int(vx), int(vy)), int(8 * zoom))
 
 
 # Main loop
@@ -243,7 +274,8 @@ while running:
         num = hex_number_map.get((q, r))
         if num:
             num_surf = font.render(str(num), True, (0, 0, 0))
-            screen.blit(num_surf, (x - 5, y - 8))
+            num_rect = num_surf.get_rect(center=(x, y))
+            screen.blit(num_surf, num_rect)
 
     draw_structures(screen)
 
