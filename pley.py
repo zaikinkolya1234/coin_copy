@@ -107,6 +107,19 @@ random.shuffle(hexes)
 hex_resource_map = {}
 hex_number_map = {}
 
+def weighted_number():
+    """Return a number between 1 and 12 with custom weights."""
+    weights = {i: 1 for i in range(1, 13)}
+    for i in [6, 7]:
+        weights[i] = 6
+    for i in [5, 8]:
+        weights[i] = 2
+    numbers = list(weights.keys())
+    probs = [weights[i] for i in numbers]
+    total = sum(probs)
+    probs = [p / total for p in probs]
+    return random.choices(numbers, probs)[0]
+
 resource_distribution = {
     'gold': 0.05,
     'silver': 0.08,
@@ -146,13 +159,13 @@ for resource, percent in resource_distribution.items():
             if coord in remaining_hexes:
                 hex_resource_map[coord] = resource
                 remaining_hexes.remove(coord)
-                hex_number_map[coord] = random.randint(2, 12)
+                hex_number_map[coord] = weighted_number()
         count += len(cluster)
 
 # Ensure all silver hexes received a number
 for coord, res in hex_resource_map.items():
     if res == 'silver' and coord not in hex_number_map:
-        hex_number_map[coord] = random.randint(2, 12)
+        hex_number_map[coord] = weighted_number()
 
 # Structures on map (starting settlements)
 # Settlements are placed on hex vertices represented as (q, r, corner)
