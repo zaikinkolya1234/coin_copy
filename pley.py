@@ -3,20 +3,20 @@ import sys
 import math
 import random
 
-# Настройки окна
+# Window settings
 WIDTH, HEIGHT = 1200, 800
 FPS = 60
 
-# Цвета ресурсов
+# Resource colors
 RESOURCE_COLORS = {
-    'gold': (255, 215, 0),       # 5%
-    'silver': (192, 192, 192),   # 10%
-    'stone': (128, 128, 128),    # 13%
-    'clay': (210, 105, 30),      # 15%
-    'oil': (0, 0, 0),            # 2%
-    'wool': (255, 255, 255),     # 15%
-    'rye': (173, 255, 47),       # 15%
-    'wood': (34, 139, 34)        # 25%
+    'gold': (255, 215, 0),
+    'silver': (192, 192, 192),
+    'stone': (128, 128, 128),
+    'clay': (210, 105, 30),
+    'oil': (0, 0, 0),
+    'wool': (255, 255, 255),
+    'rye': (173, 255, 47),
+    'wood': (34, 139, 34)
 }
 
 SEA_COLOR = (0, 105, 148)
@@ -29,12 +29,19 @@ clock = pygame.time.Clock()
 
 font = pygame.font.SysFont(None, 24)
 
-# Камера
+# Players and resources
+players = [
+    {'name': 'Игрок 1', 'resources': {res: 0 for res in RESOURCE_COLORS}},
+    {'name': 'Игрок 2', 'resources': {res: 0 for res in RESOURCE_COLORS}},
+]
+current_player_index = 0
+
+# Camera
 offset_x, offset_y = 0, 0
 zoom = 1.0
 
-# Генерация фиксированного количества шестиугольников с островами
 def generate_fixed_islands(total_hexes_needed, max_radius=10):
+    """Generate islands consisting of hex coordinates."""
     hexes = set()
     attempts = 0
     while len(hexes) < total_hexes_needed and attempts < 100:
@@ -57,7 +64,8 @@ def generate_fixed_islands(total_hexes_needed, max_radius=10):
                     visited.add(neighbor)
     return list(hexes)
 
-# Центрированная гекс-сетка (сторона вверх у карты, вершина вверх у ячеек)
+# Hex helpers
+
 def hex_to_pixel(q, r, size):
     x = size * math.sqrt(3) * (q + r / 2)
     y = size * 3/2 * r
@@ -66,19 +74,19 @@ def hex_to_pixel(q, r, size):
 def draw_hex(surface, color, x, y, size):
     points = []
     for i in range(6):
-        angle = math.radians(60 * i - 30)  # Вершина вверх (ориентация)
+        angle = math.radians(60 * i - 30)
         dx = size * math.cos(angle)
         dy = size * math.sin(angle)
         points.append((x + dx, y + dy))
     pygame.draw.polygon(surface, color, points)
     pygame.draw.polygon(surface, (0, 0, 0), points, 1)
 
-# Создание карты из ровно 120 шестиугольников
+# Map generation
 hexes = generate_fixed_islands(total_hexes_needed=300)
 random.shuffle(hexes)
 hex_resource_map = {}
+hex_number_map = {}
 
-# Процентное распределение ресурсов
 resource_distribution = {
     'gold': 0.05,
     'silver': 0.08,
@@ -90,10 +98,8 @@ resource_distribution = {
     'wood': 0.25
 }
 
-# Генерация месторождений (по несколько кластеров на ресурс)
 total_hexes = len(hexes)
 remaining_hexes = set(hexes)
-allocated = 0
 
 for resource, percent in resource_distribution.items():
     target_count = round(percent * total_hexes)
@@ -106,7 +112,6 @@ for resource, percent in resource_distribution.items():
         cluster = [start]
         visited = {start}
         frontier = [start]
-
         while frontier and len(cluster) < deposit_size:
             q, r = frontier.pop(0)
             for dq, dr in [(1, 0), (-1, 0), (0, 1), (0, -1), (1, -1), (-1, 1)]:
@@ -117,14 +122,89 @@ for resource, percent in resource_distribution.items():
                     visited.add(neighbor)
                     if len(cluster) + count >= target_count:
                         break
-
         for coord in cluster:
             if coord in remaining_hexes:
                 hex_resource_map[coord] = resource
                 remaining_hexes.remove(coord)
+                hex_number_map[coord] = random.randint(2, 12)
         count += len(cluster)
 
-# Главный цикл
+# Structures on map (starting settlements)
+structures = {}
+start_spots = random.sample(list(hex_resource_map.keys()), 4)
+structures[start_spots[0]] = {'player': 0, 'type': 'settlement'}
+structures[start_spots[1]] = {'player': 0, 'type': 'settlement'}
+structures[start_spots[2]] = {'player': 1, 'type': 'settlement'}
+structures[start_spots[3]] = {'player': 1, 'type': 'settlement'}
+
+# Simple button implementation
+class Button:
+    def __init__(self, rect, text):
+        self.rect = pygame.Rect(rect)
+        self.text = text
+        self.visible = True
+
+    def draw(self, surface):
+        if not self.visible:
+            return
+        pygame.draw.rect(surface, (200, 200, 200), self.rect)
+        pygame.draw.rect(surface, (0, 0, 0), self.rect, 2)
+        text_surf = font.render(self.text, True, (0, 0, 0))
+        text_rect = text_surf.get_rect(center=self.rect.center)
+        surface.blit(text_surf, text_rect)
+
+    def is_clicked(self, pos):
+        return self.visible and self.rect.collidepoint(pos)
+
+# UI buttons
+button_start_turn = Button((WIDTH//2 - 60, HEIGHT - 60, 120, 40), 'Начать ход')
+button_end_turn = Button((WIDTH//2 - 60, HEIGHT - 60, 120, 40), 'Закончить')
+button_end_turn.visible = False
+
+# Dice result
+dice_result = None
+
+
+def roll_dice():
+    return random.randint(1, 6) + random.randint(1, 6)
+
+
+def produce_resources(dice_value):
+    for coord, data in structures.items():
+        if hex_number_map.get(coord) == dice_value:
+            resource = hex_resource_map.get(coord)
+            if resource is None:
+                continue
+            player = players[data['player']]
+            if data['type'] == 'settlement':
+                amount = 1
+            elif data['type'] == 'city':
+                amount = 2
+            else:
+                amount = 3  # upgraded city
+            player['resources'][resource] += amount
+
+
+def draw_resources(surface, player, x):
+    y = 50
+    for res, color in RESOURCE_COLORS.items():
+        pygame.draw.rect(surface, color, (x, y, 20, 20))
+        count = player['resources'][res]
+        txt = font.render(str(count), True, (0, 0, 0))
+        surface.blit(txt, (x + 25, y))
+        y += 30
+
+
+def draw_structures(surface):
+    for (q, r), data in structures.items():
+        x, y = hex_to_pixel(q, r, HEX_SIZE * zoom)
+        x += WIDTH // 2 + offset_x
+        y += HEIGHT // 2 + offset_y
+        color = (255, 0, 0) if data['player'] == 0 else (0, 0, 255)
+        pygame.draw.circle(surface, color, (int(x), int(y)), int(8 * zoom))
+
+
+# Main loop
 running = True
 while running:
     for event in pygame.event.get():
@@ -135,6 +215,17 @@ while running:
                 zoom *= 1.1
             elif event.button == 5:
                 zoom /= 1.1
+            elif event.button == 1:
+                if button_start_turn.is_clicked(event.pos):
+                    dice_result = roll_dice()
+                    produce_resources(dice_result)
+                    button_start_turn.visible = False
+                    button_end_turn.visible = True
+                elif button_end_turn.is_clicked(event.pos):
+                    button_end_turn.visible = False
+                    button_start_turn.visible = True
+                    dice_result = None
+                    current_player_index = (current_player_index + 1) % len(players)
         elif event.type == pygame.MOUSEMOTION:
             if pygame.mouse.get_pressed()[0]:
                 offset_x += event.rel[0]
@@ -146,11 +237,24 @@ while running:
         x, y = hex_to_pixel(q, r, HEX_SIZE * zoom)
         x += WIDTH // 2 + offset_x
         y += HEIGHT // 2 + offset_y
-
         resource = hex_resource_map.get((q, r), None)
         color = RESOURCE_COLORS[resource] if resource else (200, 200, 200)
-
         draw_hex(screen, color, x, y, HEX_SIZE * zoom)
+        num = hex_number_map.get((q, r))
+        if num:
+            num_surf = font.render(str(num), True, (0, 0, 0))
+            screen.blit(num_surf, (x - 5, y - 8))
+
+    draw_structures(screen)
+
+    draw_resources(screen, players[current_player_index], 10)
+
+    if dice_result is not None:
+        dice_surf = font.render(f'Бросок: {dice_result}', True, (0,0,0))
+        screen.blit(dice_surf, (WIDTH//2 - 40, 10))
+
+    button_start_turn.draw(screen)
+    button_end_turn.draw(screen)
 
     pygame.display.flip()
     clock.tick(FPS)
