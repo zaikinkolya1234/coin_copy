@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>BTC Price App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {font-family: Arial, sans-serif; text-align: center; margin-top: 50px;}
+        #username {font-size: 20px; margin-bottom: 20px;}
+        #price {font-size: 32px; font-weight: bold;}
+    </style>
+</head>
+<body>
+    <div id="username"></div>
+    <div id="price">Загрузка...</div>
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        const user = tg.initDataUnsafe && tg.initDataUnsafe.user;
+        const userEl = document.getElementById('username');
+        if (user) {
+            if (user.username) {
+                userEl.textContent = `${user.username} (ID: ${user.id})`;
+            } else {
+                userEl.textContent = `ID: ${user.id}`;
+            }
+        }
+
+        const priceEl = document.getElementById('price');
+        let lastDisplayed = null;
+        let latestPrice = null;
+
+        const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            latestPrice = parseFloat(data.p);
+        };
+
+        setInterval(() => {
+            if (latestPrice !== null) {
+                const formatted = latestPrice.toFixed(2);
+                if (lastDisplayed !== null) {
+                    if (formatted > lastDisplayed) {
+                        priceEl.style.color = 'green';
+                    } else if (formatted < lastDisplayed) {
+                        priceEl.style.color = 'red';
+                    } else {
+                        priceEl.style.color = 'black';
+                    }
+                }
+                priceEl.textContent = formatted;
+                lastDisplayed = formatted;
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

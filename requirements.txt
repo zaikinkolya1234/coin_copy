@@ -1,3 +1,2 @@
 pygame
-random
-math
+python-telegram-bot
