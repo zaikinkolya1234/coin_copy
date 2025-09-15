@@ -70,9 +70,20 @@
       #chart{height:420px}
       .container{max-width:920px;margin:0 auto}
     }
+
+    /* Intro video overlay */
+    #introOverlay{
+      position:fixed;top:0;left:0;width:100%;height:100%;
+      background:#000;display:flex;align-items:center;justify-content:center;
+      z-index:10000;
+    }
+    #introOverlay video{
+      width:100%;height:100%;object-fit:cover;
+    }
   </style>
 </head>
 <body>
+<div id="introOverlay"><video id="introVideo" src="110661-689510387_medium.mp4" autoplay muted playsinline loop></video></div>
 <div class="app" id="app">
   <header class="header">
     <div class="left">
@@ -208,6 +219,19 @@
     <button data-tab="account">Личный кабинет</button>
   </nav>
 </div>
+
+<script>
+(() => {
+  const overlay = document.getElementById('introOverlay');
+  const video = document.getElementById('introVideo');
+  const minDelay = new Promise(r => setTimeout(r, 2000));
+  const pageLoaded = new Promise(r => window.addEventListener('load', r));
+  Promise.all([minDelay, pageLoaded]).then(() => {
+    overlay.style.display = 'none';
+    video.pause();
+  });
+})();
+</script>
 
 <script>
 (() => {
