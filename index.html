@@ -45,8 +45,12 @@
 
     /* Dual range */
     .range-wrap{padding:10px;border:1px dashed #2a2f39;border-radius:12px}
-    .range-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-    input[type="range"]{width:100%}
+    .range-slider{position:relative;height:32px}
+    .range-slider .track{position:absolute;left:0;right:0;top:50%;height:4px;background:#2a2f39;transform:translateY(-50%);border-radius:2px}
+    .range-slider .range{position:absolute;top:50%;height:4px;background:var(--accent);transform:translateY(-50%);border-radius:2px}
+    .range-slider input[type="range"]{position:absolute;left:0;top:0;width:100%;height:32px;margin:0;background:none;pointer-events:none;-webkit-appearance:none}
+    .range-slider input[type="range"]::-webkit-slider-thumb{pointer-events:all;width:16px;height:16px;border-radius:50%;background:var(--accent);border:none;-webkit-appearance:none}
+    .range-slider input[type="range"]::-moz-range-thumb{pointer-events:all;width:16px;height:16px;border-radius:50%;background:var(--accent);border:none}
     .range-labels{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
 
     /* History */
@@ -115,9 +119,11 @@
                 <div id="durationLabel" class="muted" style="margin-top:8px">6 ч</div>
             </div>
             <div style="flex:1 1 260px">
-              <label>Ценовой диапазон (±0.001% от цены)</label>
+              <label>Ценовой диапазон (±0.2% от цены)</label>
               <div class="range-wrap">
-                <div class="range-row">
+                <div class="range-slider">
+                  <span class="track"></span>
+                  <span class="range" id="rangeHighlight"></span>
                   <input type="range" id="rangeLeft" min="0" max="1000" value="0" />
                   <input type="range" id="rangeRight" min="0" max="1000" value="1000" />
                 </div>
@@ -249,6 +255,7 @@
   const elDurationLabel = $('#durationLabel');
   const elRangeL = $('#rangeLeft');
   const elRangeR = $('#rangeRight');
+  const elRangeHighlight = $('#rangeHighlight');
   const elLabelMin = $('#labelMin');
   const elLabelMax = $('#labelMax');
   const elLabelL = $('#labelL');
@@ -293,23 +300,35 @@
     elAmount.value = String(v);
   }));
 
-  // --- Range calculation within ±0.001% ---
+  // --- Range calculation within ±0.2% ---
   function getBounds(p0){
-    const pmin = p0 * 0.99999; const pmax = p0 * 1.00001; return {pmin, pmax};
+    const pmin = p0 * 0.998; const pmax = p0 * 1.002; return {pmin, pmax};
   }
   function rangeValueToPrice(p0, v){ const {pmin,pmax}=getBounds(p0); return pmin + (pmax-pmin)*(v/1000); }
   function updateRangeLabels(){
-    const p0 = state.lastPrice||0; if(!p0) return;
+    const leftVal = Number(elRangeL.value);
+    const rightVal = Number(elRangeR.value);
+    const minVal = Math.min(leftVal, rightVal);
+    const maxVal = Math.max(leftVal, rightVal);
+    const leftPct = (minVal/1000)*100;
+    const rightPct = (maxVal/1000)*100;
+    if(elRangeHighlight){
+      elRangeHighlight.style.left = `${leftPct}%`;
+      elRangeHighlight.style.width = `${rightPct-leftPct}%`;
+    }
+    const p0 = state.lastPrice||0;
+    if(!p0) return;
     const {pmin,pmax}=getBounds(p0);
     elLabelMin.textContent = fmt(pmin, 2);
     elLabelMax.textContent = fmt(pmax, 2);
-    const L = rangeValueToPrice(p0, Number(elRangeL.value));
-    const R = rangeValueToPrice(p0, Number(elRangeR.value));
+    const L = rangeValueToPrice(p0, leftVal);
+    const R = rangeValueToPrice(p0, rightVal);
     elLabelL.textContent = fmt(Math.min(L,R), 2);
     elLabelR.textContent = fmt(Math.max(L,R), 2);
   }
   elRangeL.addEventListener('input', ()=>{ if(Number(elRangeL.value)>Number(elRangeR.value)) elRangeR.value=elRangeL.value; updateRangeLabels();});
   elRangeR.addEventListener('input', ()=>{ if(Number(elRangeR.value)<Number(elRangeL.value)) elRangeL.value=elRangeR.value; updateRangeLabels();});
+  updateRangeLabels();
 
   // --- Price feed from graph ---
   window.addEventListener('message', (ev)=>{
