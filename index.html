@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>BTC/ETH Range Bet — Demo</title>
   <meta name="theme-color" content="#0b0b0c" />
-  <!-- lightweight-charts -->
-  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
   <style>
     :root{
       --bg:#0b0b0c; --panel:#0f1115; --ink:#e6e8ee; --muted:#a7acb8; --line:#1a1d23;
@@ -34,9 +32,7 @@
     .row > * {flex: 1 1 auto}
 
     /* Chart */
-    #chart{height:320px}
-    .toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:8px}
-    .toolbar .muted{color:var(--muted);font-size:12px}
+    #graphFrame{width:100%;height:320px;border:0}
 
     /* Form */
     label{display:block;color:var(--silver);font-size:12px;margin-bottom:6px}
@@ -67,7 +63,7 @@
 
     /* Responsive */
     @media (min-width: 720px){
-      #chart{height:420px}
+      #graphFrame{height:420px}
       .container{max-width:920px;margin:0 auto}
     }
 
@@ -105,11 +101,7 @@
       <!-- Bets screen -->
       <section id="screen-bets" class="screen">
         <div class="card">
-          <div id="chart"></div>
-          <div class="toolbar">
-            <div class="muted">Живой график. Сдвиг и масштабирование жестами.</div>
-            <button class="btn secondary" id="resetZoom">Сброс масштаба</button>
-          </div>
+          <iframe id="graphFrame" src="graph.html"></iframe>
         </div>
 
         <div class="card">
@@ -271,7 +263,6 @@
   const elActiveTable = $('#activeTable tbody');
   const elHistoryTable = $('#historyTable tbody');
   const elStats = $('#stats');
-  const elResetZoom = $('#resetZoom');
 
   // --- Tabs ---
   $$('.nav button').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
@@ -314,19 +305,6 @@
     elAmount.value = String(v);
   }));
 
-  // --- Chart ---
-  const chart = LightweightCharts.createChart($('#chart'),{
-    layout:{ background:{type:'solid', color:'#0f1115'}, textColor:'#c8cbd1' },
-    grid:{ vertLines:{color:'#141821'}, horzLines:{color:'#141821'} },
-    rightPriceScale:{ borderColor:'#1a1d23' },
-    timeScale:{ borderColor:'#1a1d23', timeVisible:true, secondsVisible:true },
-    crosshair:{ mode: LightweightCharts.CrosshairMode.Normal },
-  });
-  const series = chart.addLineSeries({ color:'#7aa2ff', lineWidth:2 });
-  let chartBuffer = []; // {time, value}
-  function addPoint(ts, price){ chartBuffer.push({ time: Math.floor(ts/1000), value: price }); if(chartBuffer.length>600) chartBuffer.shift(); series.setData(chartBuffer); }
-  elResetZoom.addEventListener('click', ()=>{ chart.timeScale().fitContent(); });
-
   // --- Range calculation within ±0.001% ---
   function getBounds(p0){
     const pmin = p0 * 0.99999; const pmax = p0 * 1.00001; return {pmin, pmax};
@@ -357,7 +335,6 @@
     ws.onopen = ()=>{ $('#network').textContent = 'Binance WS — подключено'; };
     ws.onclose = ()=>{ $('#network').textContent = 'Binance WS — переподключение…'; setTimeout(connectWS, 1200); };
     ws.onerror = ()=> ws.close();
-    let lastDraw=0; // 1 Гц на график
     ws.onmessage = (ev)=>{
       try{
         const j = JSON.parse(ev.data);
@@ -365,8 +342,6 @@
         if(!Number.isFinite(p)) return;
         state.lastPrice = p; state.priceTs = Date.now();
         elPriceBadge.textContent = `${state.symbol} ${fmt(p,2)} USDT`;
-        const t = Date.now();
-        if (t-lastDraw>900){ addPoint(t, p); lastDraw=t; }
         updateRangeLabels();
       }catch{}
     };
