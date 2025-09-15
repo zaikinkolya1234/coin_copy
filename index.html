@@ -83,10 +83,6 @@
 <div class="app" id="app">
   <header class="header">
     <div class="left">
-      <select id="symbol" class="select" title="Криптовалюта">
-        <option value="BTC">Bitcoin</option>
-        <option value="ETH">Ethereum</option>
-      </select>
       <span id="priceBadge" class="badge">—</span>
     </div>
     <div class="center">Монеты: <span id="balance">10000</span></div>
@@ -247,7 +243,6 @@
   }
 
   // --- UI refs ---
-  const elSymbol = $('#symbol');
   const elPriceBadge = $('#priceBadge');
   const elBalance = $('#balance');
   const elDuration = $('#duration');
@@ -264,6 +259,8 @@
   const elHistoryTable = $('#historyTable tbody');
   const elStats = $('#stats');
 
+  elPriceBadge.textContent = `${state.symbol}/USDT —`;
+
   // --- Tabs ---
   $$('.nav button').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
   function setTab(tab){
@@ -274,15 +271,6 @@
     if (tab==='history') renderHistory();
     if (tab==='bets') renderActive();
   }
-
-  // --- Symbol ---
-  elSymbol.value = state.symbol;
-  elSymbol.addEventListener('change', () => {
-    state.symbol = elSymbol.value;
-    connectWS();
-    updateRangeLabels();
-    persist();
-  });
 
   // --- Duration ---
   function humanizeSec(s){
@@ -323,30 +311,26 @@
   elRangeL.addEventListener('input', ()=>{ if(Number(elRangeL.value)>Number(elRangeR.value)) elRangeR.value=elRangeL.value; updateRangeLabels();});
   elRangeR.addEventListener('input', ()=>{ if(Number(elRangeR.value)<Number(elRangeL.value)) elRangeL.value=elRangeR.value; updateRangeLabels();});
 
-  // --- Binance WS ---
-  let ws; let wsSymbol=''; let wsTimer;
-  function connectWS(){
-    const map = { BTC:'btcusdt', ETH:'ethusdt' };
-    const next = map[state.symbol];
-    if(ws && wsSymbol===next) return;
-    if(ws) ws.close();
-    wsSymbol = next;
-    ws = new WebSocket(`wss://stream.binance.com:9443/ws/${next}@trade`);
-    ws.onopen = ()=>{ $('#network').textContent = 'Binance WS — подключено'; };
-    ws.onclose = ()=>{ $('#network').textContent = 'Binance WS — переподключение…'; setTimeout(connectWS, 1200); };
-    ws.onerror = ()=> ws.close();
-    ws.onmessage = (ev)=>{
-      try{
-        const j = JSON.parse(ev.data);
-        const p = parseFloat(j.p ?? j.price ?? j.data?.p);
-        if(!Number.isFinite(p)) return;
-        state.lastPrice = p; state.priceTs = Date.now();
-        elPriceBadge.textContent = `${state.symbol} ${fmt(p,2)} USDT`;
+  // --- Price feed from graph ---
+  window.addEventListener('message', (ev)=>{
+    const msg = ev.data || {};
+    if(msg.type === 'price'){
+      if(msg.symbol) {
+        state.symbol = String(msg.symbol).toUpperCase();
+        localStorage.setItem('rb.symbol', state.symbol);
+      }
+      if(typeof msg.price === 'number'){
+        state.lastPrice = msg.price;
+        state.priceTs = Date.now();
+        elPriceBadge.textContent = `${state.symbol}/USDT ${fmt(msg.price,2)}`;
         updateRangeLabels();
-      }catch{}
-    };
-  }
-  connectWS();
+      }
+    } else if(msg.type === 'symbol' && msg.symbol){
+      state.symbol = String(msg.symbol).toUpperCase();
+      localStorage.setItem('rb.symbol', state.symbol);
+      elPriceBadge.textContent = `${state.symbol}/USDT —`;
+    }
+  });
 
   // --- Bets ---
   function canPlace(){
