@@ -2,93 +2,91 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BTC — свечи 5s (Demo)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>BTC/USDT — свечи 5 секунд</title>
 
   <!-- Lightweight Charts -->
   <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 
   <style>
-    :root{
-      --bg:#0b0b0c; --panel:#0f1115; --ink:#e6e8ee; --line:#1a1d23;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial}
-    .wrap{display:flex;flex-direction:column;height:100%}
-    header{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);background:#0e1015}
-    #status{font-size:12px;opacity:.8}
-    main{flex:1;display:flex;flex-direction:column;gap:8px;padding:10px}
-    #chart{height:70vh;min-height:360px;border:1px solid var(--line);border-radius:12px}
-    .toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between}
-    button{background:#1a2a55;border:1px solid #22376f;color:#fff;padding:8px 12px;border-radius:8px;cursor:pointer}
-    button:disabled{opacity:.6;cursor:not-allowed}
-    .muted{opacity:.7;font-size:12px}
+    :root{ --bg:#0b0b0c; --ink:#e6e8ee; --line:#1a1d23; }
+    *{ box-sizing:border-box }
+    html,body{ height:100% }
+    body{ margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial }
+    header{ display:flex; gap:12px; align-items:center; padding:10px 12px; border-bottom:1px solid var(--line); background:#0e1015 }
+    #status{ font-size:12px; opacity:.8 }
+    #err{ font-size:12px; opacity:.8; color:#f36f6f }
+    #chart{ height:70vh; min-height:360px; margin:10px; border:1px solid var(--line); border-radius:12px }
+    .toolbar{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding:0 10px 12px }
+    button{ background:#1a2a55; border:1px solid #22376f; color:#fff; padding:8px 12px; border-radius:8px; cursor:pointer }
+    .muted{ opacity:.75; font-size:12px }
   </style>
 </head>
 <body>
-<div class="wrap">
   <header>
-    <div><strong>BTC/USDT</strong> — свечи 5&nbsp;секунд</div>
-    <div id="lastPrice">—</div>
-    <div id="status" class="muted">Отключено</div>
+    <strong>BTC/USDT</strong>
+    <span>— свечи 5 секунд</span>
+    <span id="lastPrice">—</span>
+    <span id="status" class="muted">Инициализация…</span>
+    <span id="err"></span>
   </header>
 
-  <main>
-    <div id="chart"></div>
-    <div class="toolbar">
-      <div class="muted">Колесо мыши — масштаб, зажатая левая кнопка — прокрутка. Двойной клик — авто-масштаб.</div>
-      <div>
-        <button id="fit">Сброс масштаба</button>
-      </div>
-    </div>
-  </main>
-</div>
+  <div id="chart"></div>
+  <div class="toolbar">
+    <div class="muted">Колесо — масштаб, перетаскивание — прокрутка, двойной клик — авто-масштаб.</div>
+    <div><button id="fit">Сброс масштаба</button></div>
+  </div>
 
 <script>
 (() => {
-  // --- График ---
-  const chart = LightweightCharts.createChart(document.getElementById('chart'), {
-    layout: { background: { type: 'solid', color: '#0f1115' }, textColor: '#cbd3df' },
-    grid: { vertLines: { color: '#151a24' }, horzLines: { color: '#151a24' } },
-    rightPriceScale: { borderColor: '#1a1d23' },
-    timeScale: {
-      borderColor: '#1a1d23',
-      timeVisible: true,
-      secondsVisible: true,
-      fixLeftEdge: false,
-      fixRightEdge: false,
-    },
-    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+  // ----------------- Параметры -----------------
+  const SYMBOL = 'BTCUSDT';
+  const TF_MS = 5000;        // таймфрейм свечи
+  const MAX_CANDLES = 1200;  // глубина истории
+  const REST_URL = 'https://api.binance.com/api/v3/trades?symbol=' + SYMBOL;
+
+  // ----------------- UI -----------------
+  const container = document.getElementById('chart');
+  const statusEl  = document.getElementById('status');
+  const priceEl   = document.getElementById('lastPrice');
+  const errEl     = document.getElementById('err');
+
+  function setStatus(s){ statusEl.textContent = s; }
+  function setErr(e){ errEl.textContent = e ? ('Ошибка: ' + e) : ''; }
+
+  // ----------------- График -----------------
+  const chart = LightweightCharts.createChart(container, {
+    layout: { background:{type:'solid', color:'#0f1115'}, textColor:'#cbd3df' },
+    grid: { vertLines:{color:'#151a24'}, horzLines:{color:'#151a24'} },
+    rightPriceScale:{ borderColor:'#1a1d23' },
+    timeScale:{ borderColor:'#1a1d23', timeVisible:true, secondsVisible:true },
+    crosshair:{ mode: LightweightCharts.CrosshairMode.Normal },
   });
   const series = chart.addCandlestickSeries({
-    upColor: '#26a69a', downColor: '#ef5350',
-    wickUpColor: '#26a69a', wickDownColor: '#ef5350',
-    borderUpColor: '#26a69a', borderDownColor: '#ef5350',
+    upColor:'#26a69a', downColor:'#ef5350',
+    wickUpColor:'#26a69a', wickDownColor:'#ef5350',
+    borderUpColor:'#26a69a', borderDownColor:'#ef5350',
   });
-
   document.getElementById('fit').addEventListener('click', () => chart.timeScale().fitContent());
   chart.subscribeDblClick(() => chart.timeScale().fitContent());
+  new ResizeObserver(() => {
+    const r = container.getBoundingClientRect();
+    chart.resize(Math.floor(r.width), Math.floor(r.height));
+  }).observe(container);
 
-  // --- Агрегация в свечи 5s ---
-  const TF_MS = 5000;               // таймфрейм 5 секунд
-  const MAX_CANDLES = 1200;         // ~100 минут истории
-  let candles = [];                 // массив завершённых свечей
-  let cur = null;                   // текущая (незавершённая) свеча
+  // ----------------- Агрегация свечей -----------------
+  let candles = [];     // завершённые свечи
+  let cur = null;       // текущая свеча
   let lastBucket = 0;
 
-  function pushFinal(c) {
-    candles.push(c);
-    if (candles.length > MAX_CANDLES) candles.shift();
-  }
-
-  function handleTrade(price, tsMs) {
-    const bucketStart = Math.floor(tsMs / TF_MS) * TF_MS;
-    if (!cur || bucketStart !== lastBucket) {
+  const bucket = (tMs) => Math.floor(tMs / TF_MS) * TF_MS;
+  function pushFinal(c){ candles.push(c); if (candles.length > MAX_CANDLES) candles.shift(); }
+  function updateByTrade(price, tsMs){
+    const b = bucket(tsMs);
+    if (!cur || b !== lastBucket) {
       if (cur) pushFinal(cur);
-      cur = { time: Math.floor(bucketStart / 1000), open: price, high: price, low: price, close: price };
-      lastBucket = bucketStart;
-      // полная перерисовка с "хвостом" из текущей свечи
+      cur = { time: Math.floor(b/1000), open:price, high:price, low:price, close:price };
+      lastBucket = b;
       series.setData([...candles, cur]);
     } else {
       cur.high = Math.max(cur.high, price);
@@ -98,45 +96,137 @@
     }
   }
 
-  // --- WebSocket Binance (spot) ---
-  const statusEl = document.getElementById('status');
-  const lastPriceEl = document.getElementById('lastPrice');
-  let ws = null;
-  let reconnectTimer = null;
-
-  function setStatus(text) { statusEl.textContent = text; }
-  function connect() {
-    clearTimeout(reconnectTimer);
-    if (ws) try { ws.close(); } catch {}
-    ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
-    ws.onopen = () => setStatus('Подключено');
-    ws.onclose = () => { setStatus('Переподключение…'); reconnectTimer = setTimeout(connect, 1500); };
-    ws.onerror = () => ws.close();
-    ws.onmessage = (ev) => {
-      // Документация: поле p — цена, T — время сделки (мс)
-      // https://binance-docs.github.io/apidocs/spot/en/#aggregate-trade-streams
-      try {
-        const j = JSON.parse(ev.data);
-        const p = parseFloat(j.p ?? j.price ?? j.data?.p);
-        const t = Number(j.T ?? j.data?.T ?? Date.now());
-        if (!Number.isFinite(p)) return;
-        lastPriceEl.textContent = `Последняя цена: ${p.toFixed(2)} USDT`;
-        handleTrade(p, t);
-      } catch {}
-    };
-  }
-  connect();
-
-  // --- Страховочный тикер: если трафика мало, форс-обновляем текущую свечу раз в 1с ---
+  // Страховочное обновление текущей свечи
   setInterval(() => { if (cur) series.update(cur); }, 1000);
 
-  // --- Начальная подгонка масштаба ---
-  const fitOnce = setInterval(() => {
-    if (candles.length + (cur ? 1 : 0) > 30) {
-      chart.timeScale().fitContent();
-      clearInterval(fitOnce);
+  // ----------------- История (REST) -----------------
+  async function bootstrapFromRest(){
+    setStatus('Загрузка истории…');
+    try{
+      let lastId = null, all = [];
+      for (let i=0; i<5; i++){ // ~5000 последних сделок
+        const url = lastId ? `${REST_URL}&limit=1000&fromId=${lastId}` : `${REST_URL}&limit=1000`;
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('REST ' + resp.status);
+        const arr = await resp.json();
+        if (!Array.isArray(arr) || arr.length === 0) break;
+        all = all.concat(arr);
+        lastId = arr[arr.length - 1].id + 1;
+      }
+      const map = new Map();
+      for (const t of all){
+        const p = parseFloat(t.price); const ts = t.time;
+        if (!Number.isFinite(p)) continue;
+        const key = Math.floor(bucket(ts)/1000);
+        const prev = map.get(key);
+        if (!prev) map.set(key, { time:key, open:p, high:p, low:p, close:p });
+        else {
+          prev.high = Math.max(prev.high, p);
+          prev.low  = Math.min(prev.low,  p);
+          prev.close = p;
+        }
+      }
+      candles = [...map.values()].sort((a,b)=>a.time-b.time);
+      if (candles.length){
+        lastBucket = candles[candles.length-1].time * 1000;
+        cur = candles.pop();
+        series.setData([...candles, cur]);
+        chart.timeScale().fitContent();
+        priceEl.textContent = 'Последняя цена: ' + cur.close.toFixed(2) + ' USDT';
+        setStatus('История загружена');
+      } else {
+        setStatus('Нет исторических данных');
+      }
+    }catch(e){ setErr(e?.message || String(e)); setStatus('История недоступна'); }
+  }
+
+  // ----------------- Поток: WebSocket с авто-фоллбеком -----------------
+  let ws = null, reconnectTimer = null, pollingTimer = null;
+
+  function startPolling(){
+    if (pollingTimer) return;
+    setStatus('Пуллинг REST раз в 1с…');
+    pollingTimer = setInterval(async () => {
+      try{
+        const r = await fetch(`${REST_URL}&limit=100`);
+        if (!r.ok) return;
+        const arr = await r.json();
+        arr.sort((a,b)=>a.time-b.time);
+        for (const t of arr){
+          const p = parseFloat(t.price); const ts = t.time;
+          if (!Number.isFinite(p)) continue;
+          priceEl.textContent = 'Последняя цена: ' + p.toFixed(2) + ' USDT';
+          updateByTrade(p, ts);
+        }
+      }catch{}
+    }, 1000);
+  }
+  function stopPolling(){ if (pollingTimer){ clearInterval(pollingTimer); pollingTimer=null; } }
+
+  function connectWS(){
+    try{ if (ws) ws.close(); }catch{}
+    stopPolling();
+    setStatus('Подключение к WebSocket…');
+    setErr('');
+    try{
+      ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
+    }catch(e){
+      setErr('Создание WS: ' + (e?.message || e));
+      ws = null;
+      startPolling();
+      return;
     }
-  }, 500);
+    ws.onopen = () => setStatus('WS подключен');
+    ws.onerror = () => { try{ ws.close(); }catch{} };
+    ws.onclose = () => {
+      setStatus('WS недоступен, переключение на REST…');
+      startPolling();
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connectWS, 5000);
+    };
+    ws.onmessage = (ev) => {
+      try{
+        const j = JSON.parse(ev.data);
+        const p = parseFloat(j.p);
+        const ts = Number(j.T) || Date.now();
+        if (!Number.isFinite(p)) return;
+        priceEl.textContent = 'Последняя цена: ' + p.toFixed(2) + ' USDT';
+        updateByTrade(p, ts);
+      }catch(e){ setErr('Парсинг WS: ' + (e?.message || e)); }
+    };
+  }
+
+  // ----------------- Синтетический фоллбек (на случай полной недоступности сети) -----------------
+  let syntheticTimer = null;
+  function startSynthetic(){
+    if (syntheticTimer) return;
+    setStatus('Синтетический поток данных');
+    setErr('Внешние источники недоступны, показаны тестовые данные');
+    let price = cur?.close || 60000;
+    syntheticTimer = setInterval(() => {
+      const now = Date.now();
+      // небольшой дрейф и шум
+      price *= (1 + (Math.random()-0.5)*0.0008);
+      updateByTrade(price, now);
+      priceEl.textContent = 'Последняя цена: ' + price.toFixed(2) + ' USDT';
+    }, 500);
+  }
+
+  // Если за 7 секунд после инициализации нет ни одной свечи — включаем синтетику
+  setTimeout(() => {
+    const hasData = candles.length > 0 || !!cur;
+    if (!hasData) startSynthetic();
+  }, 7000);
+
+  // ----------------- Глобальные обработчики ошибок -----------------
+  window.addEventListener('error', (ev) => setErr(ev.error?.message || ev.message || 'Ошибка'));
+  window.addEventListener('unhandledrejection', (ev) => setErr(String(ev.reason || 'Unhandled rejection')));
+
+  // ----------------- Старт -----------------
+  (async () => {
+    await bootstrapFromRest();  // первичная отрисовка
+    connectWS();                // основной поток
+  })();
 })();
 </script>
 </body>
