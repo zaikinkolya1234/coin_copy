@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Крипто-график — настраиваемый таймфрейм</title>
+  <style>
+    html, body { height: 100%; margin: 0; font-family: -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Liberation Sans', sans-serif; background:#0e1116; color:#e6e6e6; }
+    .wrap { height: 100%; display: grid; grid-template-rows: auto 1fr auto; gap: 8px; padding: 12px; box-sizing: border-box; }
+    .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .panel { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .chart { position: relative; height: 100%; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 20px rgba(0,0,0,.35); background: #0b0e13; }
+    .chart #tv { position: absolute; inset: 0; }
+    .overlay { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.45); padding: 8px 10px; border-radius: 8px; font-size: 12px; line-height: 1.35; pointer-events: none; white-space: pre-line; }
+    .footer { opacity: .75; font-size: 12px; }
+    .badge { padding: 2px 6px; border-radius: 6px; background: #1b2130; border: 1px solid #2a3347; font-size: 12px; }
+    select, button, input[type="checkbox"] { background: #151a22; color: #e6e6e6; border: 1px solid #2a3347; padding: 6px 8px; border-radius: 8px; }
+    button { cursor: pointer; }
+    .sep { width:1px; height:22px; background:#2a3347; margin:0 4px; }
+  </style>
+  <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="panel">
+      <!-- Выбор криптовалюты -->
+      <label class="badge" style="display:flex;gap:6px;align-items:center">
+        Пара
+        <select id="symbol">
+          <option value="btcusdt" selected>BTC/USDT</option>
+          <option value="ethusdt">ETH/USDT</option>
+          <option value="solusdt">SOL/USDT</option>
+          <option value="bnbusdt">BNB/USDT</option>
+        </select>
+      </label>
+
+      <span class="badge" id="status">Подключение…</span>
+      <span class="sep"></span>
+      <label class="badge" style="display:flex;gap:6px;align-items:center">
+        <input id="autoscale" type="checkbox" checked>
+        Автомасштаб
+      </label>
+      <button id="reset">Сбросить масштаб</button>
+      <span class="sep"></span>
+
+      <!-- Выбор таймфрейма -->
+      <label class="badge" style="display:flex;gap:6px;align-items:center">
+        ТФ
+        <select id="tf">
+          <option value="1m" selected>1 мин</option>
+          <option value="10m">10 мин</option>
+          <option value="1h">1 час</option>
+        </select>
+      </label>
+
+      <!-- Объём истории -->
+      <label class="badge" style="display:flex;gap:6px;align-items:center">
+        История
+        <select id="historyPreset">
+          <option value="3h" selected>3 часа</option>
+          <option value="12h">12 часов</option>
+          <option value="1d">1 день</option>
+          <option value="7d">7 дней</option>
+          <option value="30d">30 дней</option>
+        </select>
+      </label>
+      <button id="reload">Перезагрузить историю</button>
+    </div>
+  </div>
+
+  <div class="chart">
+    <div id="tv"></div>
+    <div class="overlay">
+      Управление:\n
+      • Колесо мыши — масштаб по времени\n
+      • Зажать шкалу цен и тянуть — вертикальный масштаб\n
+      • Зажать график и тянуть — прокрутка\n
+      • Двойной клик по шкале — авто-масштаб
+    </div>
+  </div>
+
+  <div class="footer">Данные: Binance (поток {SYMBOL}@trade и REST). Свечи агрегируются на клиенте согласно выбранному таймфрейму. Только в информационных целях.</div>
+</div>
+
+<script>
+(function () {
+  let symbol = document.getElementById('symbol').value;
+  const wsEndpoint = (sym) => `wss://stream.binance.com:9443/ws/${sym}@trade`;
+  const restKlines = (sym, interval, startMs, endMs, limit=1000) =>
+    `https://api.binance.com/api/v3/klines?symbol=${sym.toUpperCase()}&interval=${interval}&startTime=${startMs}&endTime=${endMs}&limit=${limit}`;
+
+  const TF = {
+    '1m': 60,
+    '10m': 600,
+    '1h': 3600,
+  };
+
+  function floorToStep(tsSec, stepSec) { return Math.floor(tsSec / stepSec) * stepSec; }
+
+  const container = document.getElementById('tv');
+  const chart = LightweightCharts.createChart(container, {
+    layout: { background: { type: 'solid', color: '#0b0e13' }, textColor: '#d1d4dc' },
+    rightPriceScale: { borderColor: '#2a3347', scaleMargins: { top: 0.1, bottom: 0.1 } },
+    timeScale: { borderColor: '#2a3347', timeVisible: true, secondsVisible: true, rightOffset: 8 },
+    grid: { vertLines: { color: '#1b2434' }, horzLines: { color: '#1b2434' } },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    handleScroll: { mouseWheel: true, pressedMouseMove: true },
+    handleScale: { axisPressedMouseMove: { time: true, price: true }, mouseWheel: true, pinch: true },
+  });
+  const series = chart.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderDownColor: '#ef5350', borderUpColor: '#26a69a', wickDownColor: '#ef5350', wickUpColor: '#26a69a' });
+
+  const resize = () => chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+  new ResizeObserver(resize).observe(container.parentElement); window.addEventListener('load', resize);
+
+  const statusEl = document.getElementById('status');
+  const autoscaleEl = document.getElementById('autoscale');
+  const resetBtn = document.getElementById('reset');
+  const tfEl = document.getElementById('tf');
+  const historyPresetEl = document.getElementById('historyPreset');
+  const reloadBtn = document.getElementById('reload');
+  const symbolEl = document.getElementById('symbol');
+
+  function setStatus(s){ statusEl.textContent = s; }
+
+  autoscaleEl.addEventListener('change', () => { if (autoscaleEl.checked) series.priceScale().applyOptions({ autoScale: true }); });
+  resetBtn.addEventListener('click', () => { chart.timeScale().fitContent(); series.priceScale().applyOptions({ autoScale: true }); });
+
+  tfEl.addEventListener('change', () => {
+    stopStream();
+    candles.length = 0; lastCandle = null; series.setData([]);
+    loadHistoryAndStartStream();
+  });
+  reloadBtn.addEventListener('click', () => { stopStream(); loadHistoryAndStartStream(); });
+
+  symbolEl.addEventListener('change', () => {
+    symbol = symbolEl.value;
+    stopStream();
+    candles.length = 0; lastCandle = null; series.setData([]);
+    loadHistoryAndStartStream();
+  });
+
+  let STEP_SEC = TF[tfEl.value];
+  let lastCandle = null;
+  const candles = [];
+
+  function setStepFromUI(){ STEP_SEC = TF[tfEl.value]; }
+
+  function updateCurrentCandle(price, qty, tsMs){
+    const tsSec = Math.floor(tsMs / 1000);
+    const bucket = floorToStep(tsSec, STEP_SEC);
+    if (!lastCandle || lastCandle.time !== bucket){
+      if (lastCandle){ candles.push(lastCandle); series.update(lastCandle); }
+      lastCandle = { time: bucket, open: price, high: price, low: price, close: price, volume: qty||0 };
+      series.update(lastCandle);
+      if (autoscaleEl.checked) series.priceScale().applyOptions({ autoScale: true });
+      return;
+    }
+    if (price > lastCandle.high) lastCandle.high = price;
+    if (price < lastCandle.low) lastCandle.low = price;
+    lastCandle.close = price;
+    lastCandle.volume += qty||0;
+    series.update(lastCandle);
+  }
+
+  let ws = null; let reconnectTimer = null;
+  function stopStream(){ try{ if (ws){ ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null; ws.close(); } }catch(_){} ws = null; if (reconnectTimer){ clearTimeout(reconnectTimer); reconnectTimer=null; } }
+  function startStream(){
+    const endpoint = wsEndpoint(symbol);
+    try { ws = new WebSocket(endpoint); } catch(e){ setStatus('Ошибка инициации WS'); scheduleReconnect(); return; }
+    ws.onopen = () => setStatus('Онлайн');
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        const price = parseFloat(msg.p); const qty = parseFloat(msg.q); const t = msg.T;
+        if (Number.isFinite(price) && Number.isFinite(qty) && Number.isFinite(t)) updateCurrentCandle(price, qty, t);
+      } catch(_){}
+    };
+    ws.onclose = () => { setStatus('Офлайн — переподключение'); scheduleReconnect(); };
+    ws.onerror = () => { setStatus('Ошибка — переподключение'); try{ws.close();}catch(_){} };
+  }
+  function scheduleReconnect(){ if (reconnectTimer) return; reconnectTimer = setTimeout(() => { reconnectTimer=null; startStream(); }, 1500); }
+
+  function parsePresetToMs(preset){
+    const now = Date.now();
+    const map = { '3h':10800e3, '12h':43200e3, '1d':86400e3, '7d':604800e3, '30d':2592000e3 };
+    const span = map[preset] || 10800e3;
+    return { start: now - span, end: now };
+  }
+
+  async function fetchKlines1m(startMs, endMs){
+    const chunk = 1000;
+    const out = [];
+    let from = startMs;
+    while (from < endMs){
+      const to = Math.min(endMs, from + chunk*60*1000);
+      const url = restKlines(symbol, '1m', from, to, chunk);
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('Ошибка klines: ' + resp.status);
+      const data = await resp.json();
+      if (!Array.isArray(data) || data.length === 0) break;
+      for (const k of data){
+        out.push({ time: Math.floor(k[0]/1000), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] });
+      }
+      from = to;
+    }
+    return out;
+  }
+
+  function aggregate1mToStep(candles1m, stepSec){
+    if (stepSec === 60) return candles1m;
+    const out = [];
+    let bucketStart = null; let acc = null;
+    for (const c of candles1m){
+      const t = c.time; const bucket = floorToStep(t, stepSec);
+      if (bucketStart === null || bucket !== bucketStart){
+        if (acc) out.push(acc);
+        bucketStart = bucket;
+        acc = { time: bucket, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume };
+      } else {
+        if (c.high > acc.high) acc.high = c.high;
+        if (c.low < acc.low) acc.low = c.low;
+        acc.close = c.close; acc.volume += c.volume;
+      }
+    }
+    if (acc) out.push(acc);
+    return out;
+  }
+
+  function stitchHistoryAndNow(hist, stepSec){
+    const nowSec = Math.floor(Date.now()/1000);
+    const lastTime = hist.length? hist[hist.length-1].time : floorToStep(nowSec, stepSec) - stepSec;
+    const expectedNext = lastTime + stepSec;
+    const target = floorToStep(nowSec, stepSec);
+    const padded = [...hist];
+    for (let t = expectedNext; t <= target; t += stepSec){
+      const prev = padded[padded.length-1] || null;
+      const refClose = prev? prev.close : (hist[0]? hist[0].open : undefined);
+      if (refClose === undefined) break;
+      padded.push({ time: t, open: refClose, high: refClose, low: refClose, close: refClose, volume: 0 });
+    }
+    return padded;
+  }
+
+  async function loadHistoryAndStartStream(){
+    setStatus('Загрузка истории…');
+    setStepFromUI();
+    const { start, end } = parsePresetToMs(historyPresetEl.value);
+    let hist = [];
+    try {
+      const kl1m = await fetchKlines1m(start, end);
+      hist = (STEP_SEC === 60) ? kl1m : aggregate1mToStep(kl1m, STEP_SEC);
+      hist = stitchHistoryAndNow(hist, STEP_SEC);
+      candles.length = 0; lastCandle = null;
+      series.setData(hist);
+      candles.push(...hist);
+      chart.timeScale().fitContent();
+      if (autoscaleEl.checked) series.priceScale().applyOptions({ autoScale: true });
+      setStatus(`История: ${hist.length} баров @ ${tfEl.value}`);
+    } catch (e){
+      console.error(e); setStatus('Ошибка загрузки истории');
+    }
+    startStream();
+  }
+
+  loadHistoryAndStartStream();
+})();
+</script>
+</body>
+</html>
