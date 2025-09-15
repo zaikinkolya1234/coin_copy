@@ -115,19 +115,16 @@
         <div class="card">
           <div class="row" style="align-items:flex-start">
             <div style="flex:1 1 220px">
-              <label>Окончание пари</label>
-              <div class="row">
-                <div class="chip" data-dur="10">10 с</div>
-                <div class="chip" data-dur="30">30 с</div>
-                <div class="chip" data-dur="60">1 мин</div>
-                <div class="chip" data-dur="120">2 мин</div>
-                <div class="chip" data-dur="180">3 мин</div>
-                <div class="chip" data-dur="300">5 мин</div>
-              </div>
-              <div style="margin-top:8px">
-                <input type="range" id="duration" min="10" max="300" step="5" value="60" />
-                <div class="range-labels"><span>10 с</span><span id="durationLabel">1:00</span><span>5:00</span></div>
-              </div>
+                <label>Окончание пари</label>
+                <div class="row">
+                  <div class="chip active" data-dur="21600">6 ч</div>
+                  <div class="chip" data-dur="43200">12 ч</div>
+                  <div class="chip" data-dur="86400">1 д</div>
+                  <div class="chip" data-dur="172800">2 д</div>
+                  <div class="chip" data-dur="259200">3 д</div>
+                </div>
+                <input type="hidden" id="duration" value="21600" />
+                <div id="durationLabel" class="muted" style="margin-top:8px">6 ч</div>
             </div>
             <div style="flex:1 1 260px">
               <label>Ценовой диапазон (±0.001% от цены)</label>
@@ -298,11 +295,13 @@
 
   // --- Duration ---
   function humanizeSec(s){
-    const m = Math.floor(s/60), r=s%60; return m? `${m}:${String(r).padStart(2,'0')}` : `${r} с`;
+    if (s >= 86400) return `${Math.floor(s/86400)} д`;
+    if (s >= 3600) return `${Math.floor(s/3600)} ч`;
+    const m = Math.floor(s/60), r = s % 60;
+    return m ? `${m}:${String(r).padStart(2,'0')}` : `${r} с`;
   }
   function setDuration(v){ elDuration.value=String(v); elDurationLabel.textContent = humanizeSec(Number(v)); }
   setDuration(Number(elDuration.value));
-  elDuration.addEventListener('input', () => setDuration(Number(elDuration.value)));
   $$('#screen-bets .chip[data-dur]').forEach(c=>c.addEventListener('click',()=>{
     $$('#screen-bets .chip[data-dur]').forEach(x=>x.classList.remove('active'));
     c.classList.add('active'); setDuration(Number(c.dataset.dur));
