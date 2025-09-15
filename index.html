@@ -1,232 +1,245 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>BTC/USDT — свечи 5 секунд</title>
-
-  <!-- Lightweight Charts -->
-  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BTC график — 5с свечи (панорама и масштаб)</title>
   <style>
-    :root{ --bg:#0b0b0c; --ink:#e6e8ee; --line:#1a1d23; }
-    *{ box-sizing:border-box }
-    html,body{ height:100% }
-    body{ margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial }
-    header{ display:flex; gap:12px; align-items:center; padding:10px 12px; border-bottom:1px solid var(--line); background:#0e1015 }
-    #status{ font-size:12px; opacity:.8 }
-    #err{ font-size:12px; opacity:.8; color:#f36f6f }
-    #chart{ height:70vh; min-height:360px; margin:10px; border:1px solid var(--line); border-radius:12px }
-    .toolbar{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding:0 10px 12px }
-    button{ background:#1a2a55; border:1px solid #22376f; color:#fff; padding:8px 12px; border-radius:8px; cursor:pointer }
-    .muted{ opacity:.75; font-size:12px }
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Liberation Sans', sans-serif;
+      background: #0e1116;
+      color: #e6e6e6;
+    }
+    .wrap {
+      height: 100%;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 8px;
+      padding: 12px;
+      box-sizing: border-box;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .panel {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .chart {
+      position: relative;
+      height: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 20px rgba(0,0,0,.35);
+      background: #0b0e13;
+    }
+    .chart #tv {
+      position: absolute;
+      inset: 0;
+    }
+    .overlay {
+      position: absolute;
+      top: 8px; left: 8px;
+      background: rgba(0,0,0,.45);
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.35;
+      pointer-events: none;
+      white-space: pre-line;
+    }
+    .footer {
+      opacity: .75;
+      font-size: 12px;
+    }
+    .badge {
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: #1b2130;
+      border: 1px solid #2a3347;
+      font-size: 12px;
+    }
+    select, button, input[type="checkbox"] {
+      background: #151a22;
+      color: #e6e6e6;
+      border: 1px solid #2a3347;
+      padding: 6px 8px;
+      border-radius: 8px;
+    }
+    button { cursor: pointer; }
   </style>
+  <!-- Lightweight Charts CDN -->
+  <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
-  <header>
-    <strong>BTC/USDT</strong>
-    <span>— свечи 5 секунд</span>
-    <span id="lastPrice">—</span>
-    <span id="status" class="muted">Инициализация…</span>
-    <span id="err"></span>
-  </header>
-
-  <div id="chart"></div>
-  <div class="toolbar">
-    <div class="muted">Колесо — масштаб, перетаскивание — прокрутка, двойной клик — авто-масштаб.</div>
-    <div><button id="fit">Сброс масштаба</button></div>
+<div class="wrap">
+  <div class="header">
+    <div class="panel">
+      <strong>BTC/USDT • 5‑сек свечи</strong>
+      <span class="badge" id="status">Подключение…</span>
+      <label class="badge" style="display:flex;gap:6px;align-items:center">
+        <input id="autoscale" type="checkbox" checked>
+        Автомасштаб
+      </label>
+      <button id="reset">Сбросить масштаб</button>
+    </div>
   </div>
 
+  <div class="chart">
+    <div id="tv"></div>
+    <div class="overlay">
+      Управление:\n
+      • Колесо мыши — масштаб по времени\n
+      • Зажать шкалу цен и тянуть — вертикальный масштаб\n
+      • Зажать график и тянуть — прокрутка\n
+      • Двойной клик по шкале — авто-масштаб\n    </div>
+  </div>
+
+  <div class="footer">Данные: прямой поток сделок Binance (btcusdt@trade). Свечи собираются клиентом по 5 секунд. Только в информационных целях.</div>
+</div>
+
 <script>
-(() => {
-  // ----------------- Параметры -----------------
-  const SYMBOL = 'BTCUSDT';
-  const TF_MS = 5000;        // таймфрейм свечи
-  const MAX_CANDLES = 1200;  // глубина истории
-  const REST_URL = 'https://api.binance.com/api/v3/trades?symbol=' + SYMBOL;
+(function () {
+  const FIVE_SEC = 5; // длительность свечи в секундах
+  const symbol = 'btcusdt';
+  const wsEndpoint = `wss://stream.binance.com:9443/ws/${symbol}@trade`;
 
-  // ----------------- UI -----------------
-  const container = document.getElementById('chart');
-  const statusEl  = document.getElementById('status');
-  const priceEl   = document.getElementById('lastPrice');
-  const errEl     = document.getElementById('err');
-
-  function setStatus(s){ statusEl.textContent = s; }
-  function setErr(e){ errEl.textContent = e ? ('Ошибка: ' + e) : ''; }
-
-  // ----------------- График -----------------
+  // Инициализация графика
+  const container = document.getElementById('tv');
   const chart = LightweightCharts.createChart(container, {
-    layout: { background:{type:'solid', color:'#0f1115'}, textColor:'#cbd3df' },
-    grid: { vertLines:{color:'#151a24'}, horzLines:{color:'#151a24'} },
-    rightPriceScale:{ borderColor:'#1a1d23' },
-    timeScale:{ borderColor:'#1a1d23', timeVisible:true, secondsVisible:true },
-    crosshair:{ mode: LightweightCharts.CrosshairMode.Normal },
+    layout: { background: { type: 'solid', color: '#0b0e13' }, textColor: '#d1d4dc' },
+    rightPriceScale: { borderColor: '#2a3347', scaleMargins: { top: 0.1, bottom: 0.1 } },
+    timeScale: {
+      borderColor: '#2a3347',
+      timeVisible: true,
+      secondsVisible: true,
+      rightOffset: 8,
+      fixLeftEdge: false,
+      fixRightEdge: false,
+    },
+    grid: { vertLines: { color: '#1b2434' }, horzLines: { color: '#1b2434' } },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    handleScroll: { mouseWheel: true, pressedMouseMove: true },
+    handleScale: {
+      axisPressedMouseMove: { time: true, price: true },
+      mouseWheel: true,
+      pinch: true,
+    },
   });
+
   const series = chart.addCandlestickSeries({
-    upColor:'#26a69a', downColor:'#ef5350',
-    wickUpColor:'#26a69a', wickDownColor:'#ef5350',
-    borderUpColor:'#26a69a', borderDownColor:'#ef5350',
+    upColor: '#26a69a', downColor: '#ef5350', borderDownColor: '#ef5350', borderUpColor: '#26a69a', wickDownColor: '#ef5350', wickUpColor: '#26a69a'
   });
-  document.getElementById('fit').addEventListener('click', () => chart.timeScale().fitContent());
-  chart.subscribeDblClick(() => chart.timeScale().fitContent());
-  new ResizeObserver(() => {
-    const r = container.getBoundingClientRect();
-    chart.resize(Math.floor(r.width), Math.floor(r.height));
-  }).observe(container);
 
-  // ----------------- Агрегация свечей -----------------
-  let candles = [];     // завершённые свечи
-  let cur = null;       // текущая свеча
-  let lastBucket = 0;
+  // Адаптация к размеру контейнера
+  const resize = () => chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+  new ResizeObserver(resize).observe(container.parentElement);
+  window.addEventListener('load', resize);
 
-  const bucket = (tMs) => Math.floor(tMs / TF_MS) * TF_MS;
-  function pushFinal(c){ candles.push(c); if (candles.length > MAX_CANDLES) candles.shift(); }
-  function updateByTrade(price, tsMs){
-    const b = bucket(tsMs);
-    if (!cur || b !== lastBucket) {
-      if (cur) pushFinal(cur);
-      cur = { time: Math.floor(b/1000), open:price, high:price, low:price, close:price };
-      lastBucket = b;
-      series.setData([...candles, cur]);
-    } else {
-      cur.high = Math.max(cur.high, price);
-      cur.low  = Math.min(cur.low,  price);
-      cur.close = price;
-      series.update(cur);
-    }
+  // Автомасштаб по последним барам
+  const autoscaleCheckbox = document.getElementById('autoscale');
+  autoscaleCheckbox.addEventListener('change', () => {
+    if (autoscaleCheckbox.checked) series.priceScale().applyOptions({ autoScale: true });
+  });
+  document.getElementById('reset').addEventListener('click', () => {
+    chart.timeScale().fitContent();
+    series.priceScale().applyOptions({ autoScale: true });
+  });
+
+  // Агрегатор 5‑секундных свечей
+  let lastCandle = null; // текущая строящаяся свеча
+  const candles = []; // массив закрытых свечей
+
+  function floorToStep(tsSec, stepSec) {
+    return Math.floor(tsSec / stepSec) * stepSec;
   }
 
-  // Страховочное обновление текущей свечи
-  setInterval(() => { if (cur) series.update(cur); }, 1000);
+  function pushTrade(price, size, tsMs) {
+    const tsSec = Math.floor(tsMs / 1000);
+    const bucket = floorToStep(tsSec, FIVE_SEC);
 
-  // ----------------- История (REST) -----------------
-  async function bootstrapFromRest(){
-    setStatus('Загрузка истории…');
-    try{
-      let lastId = null, all = [];
-      for (let i=0; i<5; i++){ // ~5000 последних сделок
-        const url = lastId ? `${REST_URL}&limit=1000&fromId=${lastId}` : `${REST_URL}&limit=1000`;
-        const resp = await fetch(url);
-        if (!resp.ok) throw new Error('REST ' + resp.status);
-        const arr = await resp.json();
-        if (!Array.isArray(arr) || arr.length === 0) break;
-        all = all.concat(arr);
-        lastId = arr[arr.length - 1].id + 1;
+    if (!lastCandle || lastCandle.time !== bucket) {
+      // Закрыть предыдущую свечу, если она была
+      if (lastCandle) {
+        candles.push(lastCandle);
+        series.update(lastCandle); // зафиксировать пред. свечу
       }
-      const map = new Map();
-      for (const t of all){
-        const p = parseFloat(t.price); const ts = t.time;
-        if (!Number.isFinite(p)) continue;
-        const key = Math.floor(bucket(ts)/1000);
-        const prev = map.get(key);
-        if (!prev) map.set(key, { time:key, open:p, high:p, low:p, close:p });
-        else {
-          prev.high = Math.max(prev.high, p);
-          prev.low  = Math.min(prev.low,  p);
-          prev.close = p;
-        }
-      }
-      candles = [...map.values()].sort((a,b)=>a.time-b.time);
-      if (candles.length){
-        lastBucket = candles[candles.length-1].time * 1000;
-        cur = candles.pop();
-        series.setData([...candles, cur]);
-        chart.timeScale().fitContent();
-        priceEl.textContent = 'Последняя цена: ' + cur.close.toFixed(2) + ' USDT';
-        setStatus('История загружена');
-      } else {
-        setStatus('Нет исторических данных');
-      }
-    }catch(e){ setErr(e?.message || String(e)); setStatus('История недоступна'); }
-  }
-
-  // ----------------- Поток: WebSocket с авто-фоллбеком -----------------
-  let ws = null, reconnectTimer = null, pollingTimer = null;
-
-  function startPolling(){
-    if (pollingTimer) return;
-    setStatus('Пуллинг REST раз в 1с…');
-    pollingTimer = setInterval(async () => {
-      try{
-        const r = await fetch(`${REST_URL}&limit=100`);
-        if (!r.ok) return;
-        const arr = await r.json();
-        arr.sort((a,b)=>a.time-b.time);
-        for (const t of arr){
-          const p = parseFloat(t.price); const ts = t.time;
-          if (!Number.isFinite(p)) continue;
-          priceEl.textContent = 'Последняя цена: ' + p.toFixed(2) + ' USDT';
-          updateByTrade(p, ts);
-        }
-      }catch{}
-    }, 1000);
-  }
-  function stopPolling(){ if (pollingTimer){ clearInterval(pollingTimer); pollingTimer=null; } }
-
-  function connectWS(){
-    try{ if (ws) ws.close(); }catch{}
-    stopPolling();
-    setStatus('Подключение к WebSocket…');
-    setErr('');
-    try{
-      ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
-    }catch(e){
-      setErr('Создание WS: ' + (e?.message || e));
-      ws = null;
-      startPolling();
+      // Начать новую
+      lastCandle = {
+        time: bucket,
+        open: price,
+        high: price,
+        low: price,
+        close: price,
+        volume: size || 0,
+      };
+      series.update(lastCandle);
+      if (autoscaleCheckbox.checked) series.priceScale().applyOptions({ autoScale: true });
       return;
     }
-    ws.onopen = () => setStatus('WS подключен');
-    ws.onerror = () => { try{ ws.close(); }catch{} };
-    ws.onclose = () => {
-      setStatus('WS недоступен, переключение на REST…');
-      startPolling();
-      clearTimeout(reconnectTimer);
-      reconnectTimer = setTimeout(connectWS, 5000);
-    };
+
+    // Обновление текущей свечи
+    if (price > lastCandle.high) lastCandle.high = price;
+    if (price < lastCandle.low) lastCandle.low = price;
+    lastCandle.close = price;
+    lastCandle.volume += size || 0;
+    series.update(lastCandle);
+  }
+
+  // Статус
+  const status = document.getElementById('status');
+  function setStatus(s) { status.textContent = s; }
+
+  // WebSocket c автопереподключением
+  let ws;
+  let reconnectTimer = null;
+
+  function connect() {
+    try {
+      ws = new WebSocket(wsEndpoint);
+    } catch (e) {
+      setStatus('Ошибка инициации WS');
+      scheduleReconnect();
+      return;
+    }
+
+    ws.onopen = () => setStatus('Онлайн');
+
     ws.onmessage = (ev) => {
-      try{
-        const j = JSON.parse(ev.data);
-        const p = parseFloat(j.p);
-        const ts = Number(j.T) || Date.now();
-        if (!Number.isFinite(p)) return;
-        priceEl.textContent = 'Последняя цена: ' + p.toFixed(2) + ' USDT';
-        updateByTrade(p, ts);
-      }catch(e){ setErr('Парсинг WS: ' + (e?.message || e)); }
+      try {
+        const msg = JSON.parse(ev.data);
+        // Binance trade: { p: price, q: qty, T: tradeTime }
+        const price = parseFloat(msg.p);
+        const qty = parseFloat(msg.q);
+        const t = msg.T; // ms
+        if (Number.isFinite(price) && Number.isFinite(qty) && Number.isFinite(t)) {
+          pushTrade(price, qty, t);
+        }
+      } catch (e) {
+        // игнорировать некорректные сообщения
+      }
     };
+
+    ws.onclose = () => { setStatus('Офлайн — переподключение'); scheduleReconnect(); };
+    ws.onerror = () => { setStatus('Ошибка — переподключение'); try { ws.close(); } catch(_){} };
   }
 
-  // ----------------- Синтетический фоллбек (на случай полной недоступности сети) -----------------
-  let syntheticTimer = null;
-  function startSynthetic(){
-    if (syntheticTimer) return;
-    setStatus('Синтетический поток данных');
-    setErr('Внешние источники недоступны, показаны тестовые данные');
-    let price = cur?.close || 60000;
-    syntheticTimer = setInterval(() => {
-      const now = Date.now();
-      // небольшой дрейф и шум
-      price *= (1 + (Math.random()-0.5)*0.0008);
-      updateByTrade(price, now);
-      priceEl.textContent = 'Последняя цена: ' + price.toFixed(2) + ' USDT';
-    }, 500);
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      connect();
+    }, 1500);
   }
 
-  // Если за 7 секунд после инициализации нет ни одной свечи — включаем синтетику
-  setTimeout(() => {
-    const hasData = candles.length > 0 || !!cur;
-    if (!hasData) startSynthetic();
-  }, 7000);
-
-  // ----------------- Глобальные обработчики ошибок -----------------
-  window.addEventListener('error', (ev) => setErr(ev.error?.message || ev.message || 'Ошибка'));
-  window.addEventListener('unhandledrejection', (ev) => setErr(String(ev.reason || 'Unhandled rejection')));
-
-  // ----------------- Старт -----------------
-  (async () => {
-    await bootstrapFromRest();  // первичная отрисовка
-    connectWS();                // основной поток
-  })();
+  connect();
 })();
 </script>
 </body>
