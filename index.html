@@ -2,481 +2,141 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>BTC/ETH Range Bet — Demo</title>
-  <meta name="theme-color" content="#0b0b0c" />
-  <!-- lightweight-charts -->
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BTC — свечи 5s (Demo)</title>
+
+  <!-- Lightweight Charts -->
   <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+
   <style>
     :root{
-      --bg:#0b0b0c; --panel:#0f1115; --ink:#e6e8ee; --muted:#a7acb8; --line:#1a1d23;
-      --accent:#0f2a5a; --accent-2:#193c7a; --silver:#c0c6cf; --good:#3fb950; --bad:#f85149;
-      --radius:16px; --radius-sm:12px;
+      --bg:#0b0b0c; --panel:#0f1115; --ink:#e6e8ee; --line:#1a1d23;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial}
-    .app{display:flex;flex-direction:column;height:100%}
-    /* Header */
-    .header{display:grid;grid-template-columns: 1fr auto 1fr;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#0c0e12 0%, #0a0b0e 100%)}
-    .header .left{justify-self:start;display:flex;gap:8px;align-items:center}
-    .header .center{justify-self:center;font-weight:600}
-    .header .right{justify-self:end;display:flex;gap:8px;align-items:center}
-    .select{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 10px}
-    .badge{background:#0e1320;border:1px solid #1d2540;color:var(--silver);padding:6px 10px;border-radius:999px}
-    .avatar{width:28px;height:28px;border-radius:999px;background:linear-gradient(135deg,#2b2f38,#151820);display:grid;place-items:center;font-weight:700;color:#cbd3df;border:1px solid var(--line)}
-
-    /* Content */
-    .content{flex:1;overflow:auto}
-    .container{padding:12px;display:flex;flex-direction:column;gap:12px}
-    .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:12px}
-    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .row > * {flex: 1 1 auto}
-
-    /* Chart */
-    #chart{height:320px}
-    .toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:8px}
-    .toolbar .muted{color:var(--muted);font-size:12px}
-
-    /* Form */
-    label{display:block;color:var(--silver);font-size:12px;margin-bottom:6px}
-    input[type="number"], input[type="text"], select{width:100%;background:#101319;color:var(--ink);border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px}
-    .btn{background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:10px 14px;font-weight:600;cursor:pointer}
-    .btn.secondary{background:#181c24;border:1px solid #2a3240;color:var(--silver)}
-    .btn:disabled{opacity:.55;cursor:not-allowed}
-    .chip{padding:6px 10px;border-radius:999px;border:1px solid #1e2530;background:#10131b;color:var(--silver);cursor:pointer}
-    .chip.active{background:var(--accent-2);color:#fff;border-color:#2a4488}
-
-    /* Dual range */
-    .range-wrap{padding:10px;border:1px dashed #2a2f39;border-radius:12px}
-    .range-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-    input[type="range"]{width:100%}
-    .range-labels{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
-
-    /* History */
-    .table{width:100%;border-collapse:collapse}
-    .table th,.table td{border-bottom:1px solid var(--line);padding:8px;text-align:left}
-    .status{font-weight:700}
-    .won{color:var(--good)}
-    .lost{color:var(--bad)}
-
-    /* Bottom nav */
-    .nav{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:8px;border-top:1px solid var(--line);background:linear-gradient(0deg,#0c0e12 0%, #0a0b0e 100%)}
-    .nav button{background:#121520;border:1px solid #1a2130;color:var(--silver);padding:10px;border-radius:12px}
-    .nav button.active{background:var(--accent);color:#fff;border-color:#2a4470}
-
-    /* Responsive */
-    @media (min-width: 720px){
-      #chart{height:420px}
-      .container{max-width:920px;margin:0 auto}
-    }
-
-    /* Intro video overlay */
-    #introOverlay{
-      position:fixed;top:0;left:0;width:100%;height:100%;
-      background:#000;display:flex;align-items:center;justify-content:center;
-      z-index:10000;
-    }
-    #introOverlay video{
-      width:100%;height:100%;object-fit:cover;
-    }
+    .wrap{display:flex;flex-direction:column;height:100%}
+    header{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);background:#0e1015}
+    #status{font-size:12px;opacity:.8}
+    main{flex:1;display:flex;flex-direction:column;gap:8px;padding:10px}
+    #chart{height:70vh;min-height:360px;border:1px solid var(--line);border-radius:12px}
+    .toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between}
+    button{background:#1a2a55;border:1px solid #22376f;color:#fff;padding:8px 12px;border-radius:8px;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .muted{opacity:.7;font-size:12px}
   </style>
 </head>
 <body>
-<div id="introOverlay"><video id="introVideo" src="110661-689510387_medium.mp4" autoplay muted playsinline loop></video></div>
-<div class="app" id="app">
-  <header class="header">
-    <div class="left">
-      <select id="symbol" class="select" title="Криптовалюта">
-        <option value="BTC">Bitcoin</option>
-        <option value="ETH">Ethereum</option>
-      </select>
-      <span id="priceBadge" class="badge">—</span>
-    </div>
-    <div class="center">Монеты: <span id="balance">10000</span></div>
-    <div class="right">
-      <span class="badge" id="network">Binance WS</span>
-      <div class="avatar" title="Профиль">U</div>
-    </div>
+<div class="wrap">
+  <header>
+    <div><strong>BTC/USDT</strong> — свечи 5&nbsp;секунд</div>
+    <div id="lastPrice">—</div>
+    <div id="status" class="muted">Отключено</div>
   </header>
 
-  <main class="content">
-    <div class="container">
-      <!-- Bets screen -->
-      <section id="screen-bets" class="screen">
-        <div class="card">
-          <div id="chart"></div>
-          <div class="toolbar">
-            <div class="muted">Живой график. Сдвиг и масштабирование жестами.</div>
-            <button class="btn secondary" id="resetZoom">Сброс масштаба</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="row" style="align-items:flex-start">
-            <div style="flex:1 1 220px">
-              <label>Окончание пари</label>
-              <div class="row">
-                <div class="chip" data-dur="10">10 с</div>
-                <div class="chip" data-dur="30">30 с</div>
-                <div class="chip" data-dur="60">1 мин</div>
-                <div class="chip" data-dur="120">2 мин</div>
-                <div class="chip" data-dur="180">3 мин</div>
-                <div class="chip" data-dur="300">5 мин</div>
-              </div>
-              <div style="margin-top:8px">
-                <input type="range" id="duration" min="10" max="300" step="5" value="60" />
-                <div class="range-labels"><span>10 с</span><span id="durationLabel">1:00</span><span>5:00</span></div>
-              </div>
-            </div>
-            <div style="flex:1 1 260px">
-              <label>Ценовой диапазон (±0.001% от цены)</label>
-              <div class="range-wrap">
-                <div class="range-row">
-                  <input type="range" id="rangeLeft" min="0" max="1000" value="0" />
-                  <input type="range" id="rangeRight" min="0" max="1000" value="1000" />
-                </div>
-                <div class="range-labels">
-                  <span>Мин: <span id="labelMin">—</span></span>
-                  <span>Выбран: <span id="labelL">—</span> … <span id="labelR">—</span></span>
-                  <span>Макс: <span id="labelMax">—</span></span>
-                </div>
-              </div>
-            </div>
-            <div style="flex:0 0 220px">
-              <label>Ставка (1…100)</label>
-              <div class="row">
-                <input id="amount" type="number" min="1" max="100" value="10" />
-              </div>
-              <div class="row" style="margin-top:6px">
-                <button class="chip" data-inc="1">+1</button>
-                <button class="chip" data-inc="5">+5</button>
-                <button class="chip" data-inc="10">+10</button>
-                <button class="chip" id="maxBtn">MAX</button>
-              </div>
-              <button class="btn" id="placeBet" style="width:100%;margin-top:10px">Сделать ставку</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3 style="margin:0 0 8px">Текущие ставки</h3>
-          <table class="table" id="activeTable">
-            <thead><tr><th>Инструмент</th><th>Диапазон</th><th>Сумма</th><th>Закрытие</th><th>P₀</th><th>Таймер</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- History screen -->
-      <section id="screen-history" class="screen" style="display:none">
-        <div class="card">
-          <div class="row">
-            <button class="chip active" data-hfilter="closed">Завершённые</button>
-            <button class="chip" data-hfilter="active">Текущие</button>
-          </div>
-        </div>
-        <div class="card">
-          <table class="table" id="historyTable">
-            <thead><tr><th>Инстр.</th><th>Статус</th><th>Ставка</th><th>Выплата</th><th>Диапазон</th><th>P₀ → Pₜ</th><th>Период</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- Deposit screen -->
-      <section id="screen-deposit" class="screen" style="display:none">
-        <div class="card">
-          <h3 style="margin:0 0 8px">Пополнение</h3>
-          <p class="muted">Демо-режим. Адреса фиктивные.</p>
-          <div class="row">
-            <div class="card" style="flex:1">
-              <h4>Bitcoin (BTC)</h4>
-              <input value="btc_demo_address_123" readonly />
-            </div>
-            <div class="card" style="flex:1">
-              <h4>Ethereum (ETH)</h4>
-              <input value="eth_demo_address_456" readonly />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Account screen -->
-      <section id="screen-account" class="screen" style="display:none">
-        <div class="card">
-          <h3 style="margin:0 0 8px">Личный кабинет</h3>
-          <div id="stats"></div>
-        </div>
-      </section>
+  <main>
+    <div id="chart"></div>
+    <div class="toolbar">
+      <div class="muted">Колесо мыши — масштаб, зажатая левая кнопка — прокрутка. Двойной клик — авто-масштаб.</div>
+      <div>
+        <button id="fit">Сброс масштаба</button>
+      </div>
     </div>
   </main>
-
-  <nav class="nav">
-    <button data-tab="history">История</button>
-    <button data-tab="bets" class="active">Ставки</button>
-    <button data-tab="deposit">Пополнить</button>
-    <button data-tab="account">Личный кабинет</button>
-  </nav>
 </div>
 
 <script>
 (() => {
-  const overlay = document.getElementById('introOverlay');
-  const video = document.getElementById('introVideo');
-  const minDelay = new Promise(r => setTimeout(r, 2000));
-  const pageLoaded = new Promise(r => window.addEventListener('load', r));
-  Promise.all([minDelay, pageLoaded]).then(() => {
-    overlay.style.display = 'none';
-    video.pause();
+  // --- График ---
+  const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+    layout: { background: { type: 'solid', color: '#0f1115' }, textColor: '#cbd3df' },
+    grid: { vertLines: { color: '#151a24' }, horzLines: { color: '#151a24' } },
+    rightPriceScale: { borderColor: '#1a1d23' },
+    timeScale: {
+      borderColor: '#1a1d23',
+      timeVisible: true,
+      secondsVisible: true,
+      fixLeftEdge: false,
+      fixRightEdge: false,
+    },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
   });
-})();
-</script>
-
-<script>
-(() => {
-  // --- State ---
-  const state = {
-    symbol: localStorage.getItem('rb.symbol') || 'BTC',
-    balance: parseFloat(localStorage.getItem('rb.balance')||'10000'),
-    bets: JSON.parse(localStorage.getItem('rb.bets')||'[]'), // {id,symbol,amount,p0,pmin,pmax,L,R,tOpen,tClose,status,pClose,payout}
-    lastPrice: 0,
-    priceTs: 0,
-  };
-
-  const $ = (sel, root=document) => root.querySelector(sel);
-  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
-  const fmt = (n, d=2) => Number(n).toLocaleString('ru-RU', { minimumFractionDigits:d, maximumFractionDigits:d });
-  const now = () => Date.now();
-  const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
-
-  // --- Persist helpers ---
-  function persist(){
-    localStorage.setItem('rb.symbol', state.symbol);
-    localStorage.setItem('rb.balance', String(state.balance));
-    localStorage.setItem('rb.bets', JSON.stringify(state.bets));
-  }
-
-  // --- UI refs ---
-  const elSymbol = $('#symbol');
-  const elPriceBadge = $('#priceBadge');
-  const elBalance = $('#balance');
-  const elDuration = $('#duration');
-  const elDurationLabel = $('#durationLabel');
-  const elRangeL = $('#rangeLeft');
-  const elRangeR = $('#rangeRight');
-  const elLabelMin = $('#labelMin');
-  const elLabelMax = $('#labelMax');
-  const elLabelL = $('#labelL');
-  const elLabelR = $('#labelR');
-  const elAmount = $('#amount');
-  const elPlace = $('#placeBet');
-  const elActiveTable = $('#activeTable tbody');
-  const elHistoryTable = $('#historyTable tbody');
-  const elStats = $('#stats');
-  const elResetZoom = $('#resetZoom');
-
-  // --- Tabs ---
-  $$('.nav button').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
-  function setTab(tab){
-    $$('.nav button').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
-    $$('.screen').forEach(s=>s.style.display='none');
-    $('#screen-'+tab).style.display='block';
-    if (tab==='account') renderStats();
-    if (tab==='history') renderHistory();
-    if (tab==='bets') renderActive();
-  }
-
-  // --- Symbol ---
-  elSymbol.value = state.symbol;
-  elSymbol.addEventListener('change', () => {
-    state.symbol = elSymbol.value;
-    connectWS();
-    updateRangeLabels();
-    persist();
+  const series = chart.addCandlestickSeries({
+    upColor: '#26a69a', downColor: '#ef5350',
+    wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+    borderUpColor: '#26a69a', borderDownColor: '#ef5350',
   });
 
-  // --- Duration ---
-  function humanizeSec(s){
-    const m = Math.floor(s/60), r=s%60; return m? `${m}:${String(r).padStart(2,'0')}` : `${r} с`;
+  document.getElementById('fit').addEventListener('click', () => chart.timeScale().fitContent());
+  chart.subscribeDblClick(() => chart.timeScale().fitContent());
+
+  // --- Агрегация в свечи 5s ---
+  const TF_MS = 5000;               // таймфрейм 5 секунд
+  const MAX_CANDLES = 1200;         // ~100 минут истории
+  let candles = [];                 // массив завершённых свечей
+  let cur = null;                   // текущая (незавершённая) свеча
+  let lastBucket = 0;
+
+  function pushFinal(c) {
+    candles.push(c);
+    if (candles.length > MAX_CANDLES) candles.shift();
   }
-  function setDuration(v){ elDuration.value=String(v); elDurationLabel.textContent = humanizeSec(Number(v)); }
-  setDuration(Number(elDuration.value));
-  elDuration.addEventListener('input', () => setDuration(Number(elDuration.value)));
-  $$('#screen-bets .chip[data-dur]').forEach(c=>c.addEventListener('click',()=>{
-    $$('#screen-bets .chip[data-dur]').forEach(x=>x.classList.remove('active'));
-    c.classList.add('active'); setDuration(Number(c.dataset.dur));
-  }));
 
-  // --- Amount helpers ---
-  $('#maxBtn').addEventListener('click',()=>{ elAmount.value = String(Math.min(100, Math.floor(state.balance))); });
-  $$('#screen-bets .chip[data-inc]').forEach(c=>c.addEventListener('click',()=>{
-    const v = clamp(Number(elAmount.value||0)+Number(c.dataset.inc), 1, Math.min(100, Math.floor(state.balance)));
-    elAmount.value = String(v);
-  }));
-
-  // --- Chart ---
-  const chart = LightweightCharts.createChart($('#chart'),{
-    layout:{ background:{type:'solid', color:'#0f1115'}, textColor:'#c8cbd1' },
-    grid:{ vertLines:{color:'#141821'}, horzLines:{color:'#141821'} },
-    rightPriceScale:{ borderColor:'#1a1d23' },
-    timeScale:{ borderColor:'#1a1d23', timeVisible:true, secondsVisible:true },
-    crosshair:{ mode: LightweightCharts.CrosshairMode.Normal },
-  });
-  const series = chart.addLineSeries({ color:'#7aa2ff', lineWidth:2 });
-  let chartBuffer = []; // {time, value}
-  function addPoint(ts, price){ chartBuffer.push({ time: Math.floor(ts/1000), value: price }); if(chartBuffer.length>600) chartBuffer.shift(); series.setData(chartBuffer); }
-  elResetZoom.addEventListener('click', ()=>{ chart.timeScale().fitContent(); });
-
-  // --- Range calculation within ±0.001% ---
-  function getBounds(p0){
-    const pmin = p0 * 0.99999; const pmax = p0 * 1.00001; return {pmin, pmax};
+  function handleTrade(price, tsMs) {
+    const bucketStart = Math.floor(tsMs / TF_MS) * TF_MS;
+    if (!cur || bucketStart !== lastBucket) {
+      if (cur) pushFinal(cur);
+      cur = { time: Math.floor(bucketStart / 1000), open: price, high: price, low: price, close: price };
+      lastBucket = bucketStart;
+      // полная перерисовка с "хвостом" из текущей свечи
+      series.setData([...candles, cur]);
+    } else {
+      cur.high = Math.max(cur.high, price);
+      cur.low  = Math.min(cur.low,  price);
+      cur.close = price;
+      series.update(cur);
+    }
   }
-  function rangeValueToPrice(p0, v){ const {pmin,pmax}=getBounds(p0); return pmin + (pmax-pmin)*(v/1000); }
-  function updateRangeLabels(){
-    const p0 = state.lastPrice||0; if(!p0) return;
-    const {pmin,pmax}=getBounds(p0);
-    elLabelMin.textContent = fmt(pmin, 2);
-    elLabelMax.textContent = fmt(pmax, 2);
-    const L = rangeValueToPrice(p0, Number(elRangeL.value));
-    const R = rangeValueToPrice(p0, Number(elRangeR.value));
-    elLabelL.textContent = fmt(Math.min(L,R), 2);
-    elLabelR.textContent = fmt(Math.max(L,R), 2);
-  }
-  elRangeL.addEventListener('input', ()=>{ if(Number(elRangeL.value)>Number(elRangeR.value)) elRangeR.value=elRangeL.value; updateRangeLabels();});
-  elRangeR.addEventListener('input', ()=>{ if(Number(elRangeR.value)<Number(elRangeL.value)) elRangeL.value=elRangeR.value; updateRangeLabels();});
 
-  // --- Binance WS ---
-  let ws; let wsSymbol=''; let wsTimer;
-  function connectWS(){
-    const map = { BTC:'btcusdt', ETH:'ethusdt' };
-    const next = map[state.symbol];
-    if(ws && wsSymbol===next) return;
-    if(ws) ws.close();
-    wsSymbol = next;
-    ws = new WebSocket(`wss://stream.binance.com:9443/ws/${next}@trade`);
-    ws.onopen = ()=>{ $('#network').textContent = 'Binance WS — подключено'; };
-    ws.onclose = ()=>{ $('#network').textContent = 'Binance WS — переподключение…'; setTimeout(connectWS, 1200); };
-    ws.onerror = ()=> ws.close();
-    let lastDraw=0; // 1 Гц на график
-    ws.onmessage = (ev)=>{
-      try{
+  // --- WebSocket Binance (spot) ---
+  const statusEl = document.getElementById('status');
+  const lastPriceEl = document.getElementById('lastPrice');
+  let ws = null;
+  let reconnectTimer = null;
+
+  function setStatus(text) { statusEl.textContent = text; }
+  function connect() {
+    clearTimeout(reconnectTimer);
+    if (ws) try { ws.close(); } catch {}
+    ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
+    ws.onopen = () => setStatus('Подключено');
+    ws.onclose = () => { setStatus('Переподключение…'); reconnectTimer = setTimeout(connect, 1500); };
+    ws.onerror = () => ws.close();
+    ws.onmessage = (ev) => {
+      // Документация: поле p — цена, T — время сделки (мс)
+      // https://binance-docs.github.io/apidocs/spot/en/#aggregate-trade-streams
+      try {
         const j = JSON.parse(ev.data);
         const p = parseFloat(j.p ?? j.price ?? j.data?.p);
-        if(!Number.isFinite(p)) return;
-        state.lastPrice = p; state.priceTs = Date.now();
-        elPriceBadge.textContent = `${state.symbol} ${fmt(p,2)} USDT`;
-        const t = Date.now();
-        if (t-lastDraw>900){ addPoint(t, p); lastDraw=t; }
-        updateRangeLabels();
-      }catch{}
+        const t = Number(j.T ?? j.data?.T ?? Date.now());
+        if (!Number.isFinite(p)) return;
+        lastPriceEl.textContent = `Последняя цена: ${p.toFixed(2)} USDT`;
+        handleTrade(p, t);
+      } catch {}
     };
   }
-  connectWS();
+  connect();
 
-  // --- Bets ---
-  function canPlace(){
-    const amt = Number(elAmount.value||0);
-    return amt>=1 && amt<=100 && amt<=state.balance && state.lastPrice>0;
-  }
-  elPlace.addEventListener('click', ()=>{
-    if(!canPlace()) return;
-    const p0 = state.lastPrice; const tOpen = now(); const dur = Number(elDuration.value); const tClose = tOpen + dur*1000;
-    const {pmin,pmax} = getBounds(p0);
-    const L = rangeValueToPrice(p0, Number(elRangeL.value));
-    const R = rangeValueToPrice(p0, Number(elRangeR.value));
-    if(!(L>=pmin && R<=pmax && L<=R)){ alert('Диапазон вне допустимых границ'); return; }
-    const amount = Number(elAmount.value);
-    const id = Math.random().toString(36).slice(2);
-    const bet = { id, symbol: state.symbol, amount, p0, pmin, pmax, L, R, tOpen, tClose, status:'active', pClose:null, payout:0 };
-    state.bets.push(bet);
-    state.balance -= amount; // холд
-    scheduleSettlement(bet);
-    persist();
-    renderActive(); renderHistory(); renderStats();
-  });
+  // --- Страховочный тикер: если трафика мало, форс-обновляем текущую свечу раз в 1с ---
+  setInterval(() => { if (cur) series.update(cur); }, 1000);
 
-  function scheduleSettlement(bet){
-    const left = Math.max(0, bet.tClose - now());
-    setTimeout(()=>{
-      // В демо берём последнюю цену на момент закрытия
-      const pClose = state.lastPrice || bet.p0; bet.pClose = pClose;
-      const win = (pClose>=Math.min(bet.L,bet.R) && pClose<=Math.max(bet.L,bet.R));
-      bet.status = win? 'won':'lost';
-      bet.payout = win? (2*bet.amount):0;
-      if (win) state.balance += bet.payout;
-      persist();
-      renderActive(); renderHistory(); renderStats();
-    }, left+25);
-  }
-
-  // Восстановить таймеры после перезагрузки
-  state.bets.filter(b=>b.status==='active').forEach(scheduleSettlement);
-
-  // --- Render Active ---
-  function renderActive(){
-    elBalance.textContent = fmt(state.balance,0);
-    const rows = state.bets.filter(b=>b.status==='active').sort((a,b)=>a.tClose-b.tClose).map(b=>{
-      const remain = Math.max(0, Math.floor((b.tClose-now())/1000));
-      const d = `${Math.floor(remain/60)}:${String(remain%60).padStart(2,'0')}`;
-      return `<tr>
-        <td>${b.symbol}</td>
-        <td>${fmt(Math.min(b.L,b.R),2)} … ${fmt(Math.max(b.L,b.R),2)}</td>
-        <td>${fmt(b.amount,0)}</td>
-        <td>${new Date(b.tClose).toLocaleTimeString()}</td>
-        <td>${fmt(b.p0,2)}</td>
-        <td>${d}</td>
-      </tr>`;
-    }).join('');
-    elActiveTable.innerHTML = rows || `<tr><td colspan="6" style="color:var(--muted)">Активных ставок нет</td></tr>`;
-  }
-  setInterval(renderActive, 1000);
-
-  // --- Render History ---
-  let hFilter='closed';
-  $$('[data-hfilter]').forEach(b=>b.addEventListener('click',()=>{
-    $$('[data-hfilter]').forEach(x=>x.classList.remove('active')); b.classList.add('active');
-    hFilter=b.dataset.hfilter; renderHistory();
-  }));
-
-  function renderHistory(){
-    const list = state.bets.filter(b=> hFilter==='active'? b.status==='active' : b.status!=='active').sort((a,b)=>b.tOpen-a.tOpen);
-    const rows = list.map(b=>{
-      const status = b.status==='won'? '<span class="status won">Выигрыш</span>' : b.status==='lost'? '<span class="status lost">Проигрыш</span>' : '<span class="status">Идёт</span>';
-      const payout = b.status==='won'? fmt(b.payout,0): '—';
-      return `<tr>
-        <td>${b.symbol}</td>
-        <td>${status}</td>
-        <td>${fmt(b.amount,0)}</td>
-        <td>${payout}</td>
-        <td>${fmt(Math.min(b.L,b.R),2)} … ${fmt(Math.max(b.L,b.R),2)}</td>
-        <td>${fmt(b.p0,2)} → ${b.pClose?fmt(b.pClose,2):'—'}</td>
-        <td>${new Date(b.tOpen).toLocaleTimeString()} – ${new Date(b.tClose).toLocaleTimeString()}</td>
-      </tr>`;
-    }).join('');
-    elHistoryTable.innerHTML = rows || `<tr><td colspan="7" style="color:var(--muted)">Нет записей</td></tr>`;
-  }
-
-  // --- Stats ---
-  function renderStats(){
-    const closed = state.bets.filter(b=>b.status==='won'||b.status==='lost');
-    const win = closed.filter(b=>b.status==='won').length;
-    const wr = closed.length? Math.round(100*win/closed.length):0;
-    const total = state.bets.length;
-    const maxWin = closed.filter(b=>b.status==='won').reduce((m,b)=>Math.max(m,b.payout||0),0);
-    const avgAmt = state.bets.length? (state.bets.reduce((s,b)=>s+b.amount,0)/state.bets.length):0;
-    elStats.innerHTML = `
-      <div class="row">
-        <div class="card" style="flex:1"><div>Всего ставок</div><h2 style="margin:6px 0">${total}</h2></div>
-        <div class="card" style="flex:1"><div>Винрейт</div><h2 style="margin:6px 0">${wr}%</h2></div>
-        <div class="card" style="flex:1"><div>Средняя ставка</div><h2 style="margin:6px 0">${fmt(avgAmt,0)}</h2></div>
-        <div class="card" style="flex:1"><div>Макс. выплата</div><h2 style="margin:6px 0">${fmt(maxWin,0)}</h2></div>
-      </div>`;
-  }
-
-  // --- Init ---
-  setTab('bets');
-  renderActive(); renderHistory(); renderStats();
+  // --- Начальная подгонка масштаба ---
+  const fitOnce = setInterval(() => {
+    if (candles.length + (cur ? 1 : 0) > 30) {
+      chart.timeScale().fitContent();
+      clearInterval(fitOnce);
+    }
+  }, 500);
 })();
 </script>
 </body>
