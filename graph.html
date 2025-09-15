@@ -85,7 +85,12 @@
 
 <script>
 (function () {
-  let symbol = document.getElementById('symbol').value;
+  const symbolEl = document.getElementById('symbol');
+  let base = localStorage.getItem('rb.symbol') || 'BTC';
+  symbolEl.value = base.toLowerCase()+"usdt";
+  let symbol = symbolEl.value;
+  window.parent.postMessage({type:'symbol', symbol: base}, '*');
+  localStorage.setItem('rb.symbol', base);
   const wsEndpoint = (sym) => `wss://stream.binance.com:9443/ws/${sym}@trade`;
   const restKlines = (sym, interval, startMs, endMs, limit=1000) =>
     `https://api.binance.com/api/v3/klines?symbol=${sym.toUpperCase()}&interval=${interval}&startTime=${startMs}&endTime=${endMs}&limit=${limit}`;
@@ -119,7 +124,6 @@
   const tfEl = document.getElementById('tf');
   const historyPresetEl = document.getElementById('historyPreset');
   const reloadBtn = document.getElementById('reload');
-  const symbolEl = document.getElementById('symbol');
 
   function setStatus(s){ statusEl.textContent = s; }
 
@@ -134,7 +138,10 @@
   reloadBtn.addEventListener('click', () => { stopStream(); loadHistoryAndStartStream(); });
 
   symbolEl.addEventListener('change', () => {
+    base = symbolEl.value.replace('usdt','').toUpperCase();
     symbol = symbolEl.value;
+    localStorage.setItem('rb.symbol', base);
+    window.parent.postMessage({type:'symbol', symbol: base}, '*');
     stopStream();
     candles.length = 0; lastCandle = null; series.setData([]);
     loadHistoryAndStartStream();
@@ -173,7 +180,10 @@
       try {
         const msg = JSON.parse(ev.data);
         const price = parseFloat(msg.p); const qty = parseFloat(msg.q); const t = msg.T;
-        if (Number.isFinite(price) && Number.isFinite(qty) && Number.isFinite(t)) updateCurrentCandle(price, qty, t);
+        if (Number.isFinite(price) && Number.isFinite(qty) && Number.isFinite(t)){
+          updateCurrentCandle(price, qty, t);
+          window.parent.postMessage({type:'price', symbol: base, price}, '*');
+        }
       } catch(_){}
     };
     ws.onclose = () => { setStatus('Офлайн — переподключение'); scheduleReconnect(); };
@@ -257,6 +267,10 @@
       chart.timeScale().fitContent();
       if (autoscaleEl.checked) series.priceScale().applyOptions({ autoScale: true });
       setStatus(`История: ${hist.length} баров @ ${tfEl.value}`);
+      if (hist.length){
+        const last = hist[hist.length-1].close;
+        window.parent.postMessage({type:'price', symbol: base, price: last}, '*');
+      }
     } catch (e){
       console.error(e); setStatus('Ошибка загрузки истории');
     }
